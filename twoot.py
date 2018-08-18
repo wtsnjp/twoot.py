@@ -11,45 +11,46 @@
 # This software is distributed under the MIT License.
 #
 
+HELP = """
+Sync Twitter and Mastodon nicely
+
+Usage:
+    {f} [options]
+
+Options:
+    -h, --help           Show this screen and exit.
+    -d, --debug          Show debug messages.
+    -l FILE, --log=FILE  Output messages to FILE.
+    -q, --quiet          Show less messages.
+    -s, --setup          Execute setup mode.
+    -v, --version        Show version.
+
+""".format(f=__file__)
+VERSION = "0.1.0"
+
+# basic libraries
 import os
 import re
 import json
 import codecs
-import getpass
-import logging
-from logging.handlers import RotatingFileHandler
+from getpass import getpass
 from urllib.parse import urlparse
 
+# pypi libraries
+from docopt import docopt
 from mastodon import Mastodon
 import twitter as Twitter
 import html2text
 import requests
 
-
-def main():
-    twoot = Twoot()
-    twoot.run()
-
-
-def get_logger(name):
-    logger = logging.getLogger(name)
-    handler = RotatingFileHandler('twoot.log', maxBytes=5000000, backupCount=9)
-    formatter = logging.Formatter('%(asctime)s - %(message)s')
-    level = logging.INFO
-
-    handler.setLevel(level)
-    handler.setFormatter(formatter)
-
-    logger.setLevel(level)
-    logger.addHandler(handler)
-    logger.propagate = False
-
-    return logger
+# use logger
+import logging as log
+from logging.handlers import RotatingFileHandler
+logger = log.getLogger('twoot')
 
 
+# the module
 class Twoot:
-    logger = get_logger('twoot')
-
     def __app_questions(self):
         # defaults
         d_name = 'Twoot'
@@ -75,7 +76,7 @@ class Twoot:
 
         inst = input('Instance (e.g., https://mastodon.social): ').rstrip('/')
         mail = input('Login e-mail (never stored): ')
-        pw = getpass.getpass(prompt='Login password (never stored): ')
+        pw = getpass(prompt='Login password (never stored): ')
 
         # register application
         cl_id, cl_sc = Mastodon.create_app(
@@ -120,7 +121,7 @@ class Twoot:
 
         return twitter
 
-    def __init__(self):
+    def __init__(self, setup=False):
         # files
         twoot_dir = os.path.expanduser('~/.' + __file__)
         if not os.path.isdir(twoot_dir):
@@ -131,7 +132,29 @@ class Twoot:
         # config
         self.max_texts = 20
 
-        if os.path.isfile(self.config_file):
+        if setup or not os.path.isfile(self.config_file):
+            # setup mode
+            logger.debug('mode: setup')
+            self.setup = True
+
+            # initialize
+            self.config = {'max_twoots': 20}
+
+            # ask for config entries
+            print('Welcome to Twoot! Please answer a few questions.')
+            self.__app_questions()
+            self.mastodon = self.__mastodon_questions()
+            self.twitter = self.__twitter_questions()
+
+            print('\nAll configuration done. Thanks!')
+
+            # save config
+            with open(self.config_file, 'w') as f:
+                json.dump(self.config, f, indent=4, sort_keys=True)
+
+        else:
+            # normal mode
+            logger.debug('mode: normal')
             self.setup = False
 
             # load config
@@ -150,24 +173,6 @@ class Twoot:
                                    tw['consumer_key'], tw['consumer_secret'])
             self.twitter = Twitter.Twitter(auth=t_auth)
 
-        else:
-            self.setup = True
-
-            # initialize
-            print('Welcome to Twoot! Please answer a few questions.')
-            self.config = {}
-
-            # ask for config entries
-            self.__app_questions()
-            self.mastodon = self.__mastodon_questions()
-            self.twitter = self.__twitter_questions()
-
-            print('\nAll configuration done. Thanks!')
-
-            # save config
-            with open(self.config_file, 'w') as f:
-                json.dump(self.config, f, indent=4, sort_keys=True)
-
         # utility
         self.html2text = html2text.HTML2Text()
         self.html2text.body_width = 0
@@ -178,7 +183,7 @@ class Twoot:
 
     def __pre_process(self, text):
         # no endline spaces
-        text = re.sub(r'\s+\n', r'\n', text)
+        text = re.sub(r'[ \t]+\n', r'\n', text)
 
         # expand links
         links = [w for w in text.split() if urlparse(w.strip()).scheme]
@@ -194,19 +199,20 @@ class Twoot:
         text = self.__pre_process(text)
 
         if not text in self.data['texts']:
+            logger.debug('Trying to toot: "{}"'.format(text))
             r = self.mastodon.toot(text)
             self.__store_text(text)
-            Twoot.logger.info('Created a toot (id: {})'.format(r['id']))
+            logger.info('Created a toot (id: {})'.format(r['id']))
 
     def __tweet(self, text):
         text = self.__pre_process(text)
 
         if not text in self.data['texts']:
-            # TODO: just switch this after getting consumer keys
-            print('tweet:', text)
+            logger.debug('Trying to tweet: "{}"'.format(text))
+            # TODO: just activate these after getting consumer keys
             #r = self.twitter.status.update(status=text)
             self.__store_text(text)
-            #Twoot.logger.info('Created a tweet (id: {})'.format(r['id']))
+            #logger.info('Created a tweet (id: {})'.format(r['id']))
 
     def __store_text(self, text):
         self.data['texts'].append(text)
@@ -252,7 +258,10 @@ class Twoot:
         last_id = self.data.get('tw_last', False)
         if last_id:
             r = self.twitter.statuses.user_timeline(
-                screen_name=me, exclude_replies=True, since_id=last_id, tweet_mode="extended")
+                screen_name=me,
+                exclude_replies=True,
+                since_id=last_id,
+                tweet_mode="extended")
         else:
             r = self.twitter.statuses.user_timeline(
                 screen_name=me, exclude_replies=True, tweet_mode="extended")
@@ -278,7 +287,7 @@ class Twoot:
             self.__tweet(self.__html2text(t.content))
 
     def run(self):
-        Twoot.logger.info('Running')
+        logger.debug('Running')
 
         # initialize data
         if os.path.isfile(self.data_file):
@@ -301,6 +310,62 @@ class Twoot:
         with codecs.open(self.data_file, 'w', 'utf-8') as f:
             json.dump(
                 self.data, f, indent=4, sort_keys=True, ensure_ascii=False)
+
+
+# the application
+def set_logger(log_level, log_file):
+    # log level
+    if log_level == 0:
+        level = log.WARN
+    elif log_level == 2:
+        level = log.DEBUG
+    else:
+        level = log.INFO
+
+    # log file
+    if log_file:
+        handler = RotatingFileHandler(
+            log_file, maxBytes=5000000, backupCount=9)
+        formatter = log.Formatter(
+            '%(asctime)s - %(name)s %(levelname)s: %(message)s')
+    else:
+        handler = log.StreamHandler()
+        formatter = log.Formatter('%(name)s %(levelname)s: %(message)s')
+
+    # apply settings
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    logger.propagate = False
+
+
+def main():
+    """
+    The main function:
+
+        1. parse command line options
+        2. setup the logger
+        3. execute twoot actions
+    """
+    # parse options
+    args = docopt(HELP, version=VERSION)
+
+    # setup the logger
+    log_level = 1  # info (default)
+    if args['--quiet']:
+        log_level = 0  # warn
+    if args['--debug']:
+        log_level = 2  # debug
+
+    log_file = args['--log']  # output messages stderr as default
+
+    set_logger(log_level, log_file)
+
+    # execute twoot actions
+    twoot = Twoot(setup=args['--setup'])
+    twoot.run()
 
 
 if __name__ == '__main__':
