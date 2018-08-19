@@ -11,11 +11,12 @@
 # This software is distributed under the MIT License.
 #
 
+PROG_NAME = "twoot.py"
 HELP = """
 Sync Twitter and Mastodon nicely
 
 Usage:
-    {f} [options]
+    {} [options]
 
 Options:
     -h, --help           Show this screen and exit.
@@ -25,7 +26,7 @@ Options:
     -s, --setup          Execute setup mode.
     -v, --version        Show version.
 
-""".format(f=__file__)
+""".format(PROG_NAME)
 VERSION = "0.1.0"
 
 # basic libraries
@@ -123,22 +124,20 @@ class Twoot:
 
     def __init__(self, setup=False):
         # files
-        twoot_dir = os.path.expanduser('~/.' + __file__)
+        twoot_dir = os.path.expanduser('~/.' + PROG_NAME)
         if not os.path.isdir(twoot_dir):
             os.mkdir(twoot_dir)
         self.config_file = twoot_dir + '/config.json'
         self.data_file = twoot_dir + '/data.json'
 
         # config
-        self.max_texts = 20
-
         if setup or not os.path.isfile(self.config_file):
             # setup mode
-            logger.debug('mode: setup')
+            logger.debug('Selected mode: setup')
             self.setup = True
 
             # initialize
-            self.config = {'max_twoots': 20}
+            self.config = {'max_twoots': 300}
 
             # ask for config entries
             print('Welcome to Twoot! Please answer a few questions.')
@@ -149,15 +148,18 @@ class Twoot:
             print('\nAll configuration done. Thanks!')
 
             # save config
+            logger.debug('Saving current config to {}'.format(
+                self.config_file))
             with open(self.config_file, 'w') as f:
                 json.dump(self.config, f, indent=4, sort_keys=True)
 
         else:
             # normal mode
-            logger.debug('mode: normal')
+            logger.debug('Selected mode: normal')
             self.setup = False
 
             # load config
+            logger.debug('Loading config file {}'.format(self.config_file))
             with open(self.config_file) as f:
                 self.config = json.loads(f.read(), 'utf-8')
 
@@ -178,12 +180,23 @@ class Twoot:
         self.html2text.body_width = 0
 
         # fetch self account information
-        self.ms_account = self.mastodon.account_verify_credentials()
-        self.tw_account = self.twitter.account.verify_credentials()
+        try:
+            self.ms_account = self.mastodon.account_verify_credentials()
+        except Exception as e:
+            logger.exception('Failed to verify credentials: {}'.format(e))
+            logger.critical('Unable to continue; abort!')
+            raise
+
+        try:
+            self.tw_account = self.twitter.account.verify_credentials()
+        except Exception as e:
+            logger.exception('Failed to verify credentials: {}'.format(e))
+            logger.critical('Unable to continue; abort!')
+            raise
 
     def __pre_process(self, text):
         # no endline spaces
-        text = re.sub(r'[ \t]+\n', r'\n', text)
+        #text = re.sub(r'[ \t]+\n', r'\n', text)
 
         # expand links
         links = [w for w in text.split() if urlparse(w.strip()).scheme]
@@ -195,29 +208,72 @@ class Twoot:
 
         return text
 
-    def __toot(self, text):
+    def __store_twoot(self, toot_id, tweet_id):
+        # store the twoot
+        twoot = {'toot_id': toot_id, 'tweet_id': tweet_id}
+        logger.debug('Storing a twoot: {}'.format(twoot))
+        self.data['twoots'].append(twoot)
+
+        # the number of stored twoots should <= max_twoots
+        if len(self.data['twoots']) > self.config['max_twoots']:
+            self.data['twoots'].pop(0)
+
+    def __toot(self, text, tweet_id):
         text = self.__pre_process(text)
 
-        if not text in self.data['texts']:
+        if tweet_id in [t['tweet_id'] for t in self.data['twoots']]:
+            logger.debug(
+                'Skipping a tweet (id: {}) because it is already forwarded'.
+                format(tweet_id))
+
+        else:
             logger.debug('Trying to toot: "{}"'.format(text))
-            r = self.mastodon.toot(text)
-            self.__store_text(text)
-            logger.info('Created a toot (id: {})'.format(r['id']))
 
-    def __tweet(self, text):
+            # try to create a toot
+            try:
+                r = self.mastodon.toot(text)
+                # NOTE: only under development
+                #logger.debug('Recieved toot info: {}'.format(str(r)))
+
+                toot_id = r['id']
+                self.__store_twoot(toot_id, tweet_id)
+
+                logger.info(
+                    'Forwarded a tweet (id: {}) as a toot (id: {})'.format(
+                        tweet_id, toot_id))
+
+            # if failed, report it
+            except Exception as e:
+                logger.exception('Failed to create a toot: {}'.format(e))
+
+    def __tweet(self, text, toot_id):
         text = self.__pre_process(text)
 
-        if not text in self.data['texts']:
-            logger.debug('Trying to tweet: "{}"'.format(text))
-            # TODO: just activate these after getting consumer keys
-            #r = self.twitter.status.update(status=text)
-            self.__store_text(text)
-            #logger.info('Created a tweet (id: {})'.format(r['id']))
+        if toot_id in [t['toot_id'] for t in self.data['twoots']]:
+            logger.debug(
+                'Skipping a toot (id: {}) because it is already forwarded'.
+                format(toot_id))
 
-    def __store_text(self, text):
-        self.data['texts'].append(text)
-        if len(self.data['texts']) > self.max_texts:
-            self.data['texts'].pop(-1)
+        else:
+            logger.debug('Trying to tweet: "{}"'.format(text))
+
+            # try to create a tweet
+            # TODO: just uncomment these after getting consumer keys officially
+            #try:
+            #    r = self.twitter.status.update(status=text)
+            #    # NOTE: only under development
+            #    logger.debug('Recieved tweet info: {}'.format(str(r)))
+            #
+            #    tweet_id = r['id']
+            #    self.__store_twoot(toot_id, tweet_id)
+            #
+            #    logger.info(
+            #        'Forwarded a toot (id: {}) as a tweet (id: {})'.format(
+            #            toot_id, tweet_id))
+            #
+            ## if failed, report it
+            #except Exception as e:
+            #    logger.exception('Failed to create a tweet: {}'.format(e))
 
     def __html2text(self, html):
         # basically, trust html2text
@@ -230,71 +286,110 @@ class Twoot:
         return text
 
     def get_new_toots(self):
-        # who am I?
+        res = []
+
+        # fetch necessary information
         me = self.ms_account['id']
+        last_id = self.data.get('last_toot', False)
 
-        # fetch toots
-        last_id = self.data.get('ms_last', False)
-        if last_id:
-            r = self.mastodon.account_statuses(
-                me, exclude_replies=True, since_id=last_id)
-        else:
-            r = self.mastodon.account_statuses(me, exclude_replies=True)
+        # try to get toots
+        try:
+            # get toots for sync
+            if last_id:
+                logger.debug('Getting new toots for sync')
+                r = self.mastodon.account_statuses(
+                    me, exclude_replies=True, since_id=last_id)
 
-        # update last toot ID
-        if len(r) > 0:
-            self.data['ms_last'] = r[0]['id']
+                logger.debug('Number of new toots: {}'.format(len(r)))
+                res = r
 
-        if last_id:
-            return r
-        else:
-            return []
+            # get toots only for updating last_toot
+            else:
+                logger.debug('Getting new toots only for fetching information')
+                r = self.mastodon.account_statuses(me, exclude_replies=True)
+
+            # update the last toot ID
+            if len(r) > 0:
+                new_last_id = r[0]['id']  # r[0] is the latest
+                logger.debug('Updating the last toot: {}'.format(new_last_id))
+                self.data['last_toot'] = new_last_id
+
+        except Exception as e:
+            logger.exception('Failed to get new toots: {}'.format(e))
+
+        return res
 
     def get_new_tweets(self):
-        # who am I?
+        res = []
+
+        # fetch necessary information
         me = self.tw_account['screen_name']
+        last_id = self.data.get('last_tweet', False)
 
-        # fetch toots
-        last_id = self.data.get('tw_last', False)
-        if last_id:
-            r = self.twitter.statuses.user_timeline(
-                screen_name=me,
-                exclude_replies=True,
-                since_id=last_id,
-                tweet_mode="extended")
-        else:
-            r = self.twitter.statuses.user_timeline(
-                screen_name=me, exclude_replies=True, tweet_mode="extended")
+        # try to get tweets
+        try:
+            # get tweets for sync
+            if last_id:
+                logger.debug('Getting new tweets for sync')
+                r = self.twitter.statuses.user_timeline(
+                    screen_name=me,
+                    exclude_replies=True,
+                    since_id=last_id,
+                    tweet_mode="extended")
 
-        # update last tweet ID
-        if len(r) > 0:
-            self.data['tw_last'] = r[0]['id']
+                logger.debug('Number of new tweets: {}'.format(len(r)))
+                res = r
 
-        if last_id:
-            return r
-        else:
-            return []
+            # get tweets only for updating last_tweet
+            else:
+                logger.debug(
+                    'Getting new tweets only for fetching information')
+                r = self.twitter.statuses.user_timeline(
+                    screen_name=me,
+                    exclude_replies=True,
+                    tweet_mode="extended")
+
+            # update the last tweet ID
+            if len(r) > 0:
+                new_last_id = r[0]['id']  # r[0] is the latest
+                logger.debug('Updating the last tweet: {}'.format(new_last_id))
+                self.data['last_tweet'] = new_last_id
+
+        except Exception as e:
+            logger.exception('Failed to get new tweets: {}'.format(e))
+
+        return res
 
     def tweets2toots(self, tweets):
         for t in reversed(tweets):
+            # NOTE: only under development
+            #logger.debug('Processing tweet info: {}'.format(t))
+
+            # create a toot if necessary
             if t.get('full_text', False):
-                self.__toot(t['full_text'])
+                self.__toot(t['full_text'], t['id'])
             else:
-                self.__toot(t['text'])
+                self.__toot(t['text'], t['id'])
 
     def toots2tweets(self, toots):
         for t in reversed(toots):
-            self.__tweet(self.__html2text(t.content))
+            # NOTE: only under development
+            #logger.debug('Processing toot info: {}'.format(t))
+
+            # create a toot if necessary
+            self.__tweet(self.__html2text(t['content']), t['id'])
 
     def run(self):
         logger.debug('Running')
 
         # initialize data
         if os.path.isfile(self.data_file):
+            logger.debug('Loading data file {}'.format(self.data_file))
             with open(self.data_file) as f:
                 self.data = json.loads(f.read(), 'utf-8')
         else:
-            self.data = {'texts': []}
+            logger.debug('No data file found; initialzing')
+            self.data = {'twoots': []}
 
         # tweets -> toots
         toots = self.get_new_toots()
@@ -307,6 +402,7 @@ class Twoot:
             self.tweets2toots(tweets)
 
         # save data
+        logger.debug('Saving latest data to {}'.format(self.data_file))
         with codecs.open(self.data_file, 'w', 'utf-8') as f:
             json.dump(
                 self.data, f, indent=4, sort_keys=True, ensure_ascii=False)
@@ -364,8 +460,12 @@ def main():
     set_logger(log_level, log_file)
 
     # execute twoot actions
-    twoot = Twoot(setup=args['--setup'])
-    twoot.run()
+    try:
+        twoot = Twoot(setup=args['--setup'])
+        twoot.run()
+
+    except:
+        exit(1)
 
 
 if __name__ == '__main__':
