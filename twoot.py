@@ -19,10 +19,10 @@ Usage:
     {} [options]
 
 Options:
-    -h, --help           Show this screen and exit.
     -d, --debug          Show debug messages.
-    -n, --dry-run        Show what would have been transferred.
+    -h, --help           Show this screen and exit.
     -l FILE, --log=FILE  Output messages to FILE.
+    -n, --dry-run        Show what would have been transferred.
     -q, --quiet          Show less messages.
     -s, --setup          Execute setup mode.
     -v, --version        Show version.
@@ -34,7 +34,7 @@ VERSION = "0.1.0"
 import os
 import re
 import json
-import codecs
+import pickle
 from getpass import getpass
 from urllib.parse import urlparse
 
@@ -56,13 +56,13 @@ class Twoot:
     def __app_questions(self):
         # defaults
         d_name = 'Twoot'
-        d_url = 'https://github.com/wtsnjp/twoot.py'
+        d_url = None
 
         # ask questions
         print('\n#1 First, decide about your application.')
 
         name = input('Name (optional; empty for "{}"): '.format(d_name))
-        url = input('Redirect URL (optional; empty for "{}"): '.format(d_url))
+        url = input('Redirect URL (optional): ')
 
         # set config
         if len(name) < 1:
@@ -70,9 +70,9 @@ class Twoot:
         if len(url) < 1:
             url = d_url
 
-        self.config['app'] = {'name': name, 'url': url}
+        return name, url
 
-    def __mastodon_questions(self):
+    def __mastodon_questions(self, app_name, app_url):
         # ask questions
         print('\n#2 Tell me about your Mastodon account.')
 
@@ -81,8 +81,9 @@ class Twoot:
         pw = getpass(prompt='Login password (never stored): ')
 
         # register application
+        # TODO: register application redirect url
         cl_id, cl_sc = Mastodon.create_app(
-            self.config['app']['name'], api_base_url=inst)
+            app_name, website=app_url, api_base_url=inst)
 
         # application certification & login
         mastodon = Mastodon(
@@ -101,7 +102,7 @@ class Twoot:
         # ask questions
         print('\n#3 Tell me about your Twitter account.')
         print(
-            'cf. Keys and tokens can be get from https://developer.twitter.com/'
+            'cf. You can get keys and tokens from https://developer.twitter.com/'
         )
 
         cs_key = input('API key: ')
@@ -129,7 +130,7 @@ class Twoot:
         if not os.path.isdir(twoot_dir):
             os.mkdir(twoot_dir)
         self.config_file = twoot_dir + '/config.json'
-        self.data_file = twoot_dir + '/data.json'
+        self.data_file = twoot_dir + '/data.pickle'
 
         # config
         if setup or not os.path.isfile(self.config_file):
@@ -138,12 +139,12 @@ class Twoot:
             self.setup = True
 
             # initialize
-            self.config = {'max_twoots': 300}
+            self.config = {'max_twoots': 1000}
 
             # ask for config entries
             print('Welcome to Twoot! Please answer a few questions.')
-            self.__app_questions()
-            self.mastodon = self.__mastodon_questions()
+            app_name, app_url = self.__app_questions()
+            self.mastodon = self.__mastodon_questions(app_name, app_url)
             self.twitter = self.__twitter_questions()
 
             print('\nAll configuration done. Thanks!')
@@ -176,30 +177,53 @@ class Twoot:
                                    tw['consumer_key'], tw['consumer_secret'])
             self.twitter = Twitter.Twitter(auth=t_auth)
 
+        # data
+        if os.path.isfile(self.data_file):
+            logger.debug('Loading data file {}'.format(self.data_file))
+            with open(self.data_file, 'rb') as f:
+                self.data = pickle.load(f)
+        else:
+            logger.debug('No data file found; initialzing')
+            self.data = {'twoots': []}
+
+        # fetch self account information
+        if not self.data.get('mastodon_account', False):
+            try:
+                logger.debug(
+                    'Fetch your Mastodon account information (verify credentials)'
+                )
+                self.data[
+                    'mastodon_account'] = self.mastodon.account_verify_credentials(
+                    )
+            except Exception as e:
+                logger.exception(
+                    'Failed to verify credentials for Mastodon: {}'.format(e))
+                logger.critical('Unable to continue; abort!')
+                raise
+
+        if not self.data.get('twitter_account', False):
+            try:
+                logger.debug(
+                    'Fetch your Twitter account information (verify credentials)'
+                )
+                self.data[
+                    'twitter_account'] = self.twitter.account.verify_credentials(
+                    )
+            except Exception as e:
+                logger.exception(
+                    'Failed to verify credentials for Twitter: {}'.format(e))
+                logger.critical('Unable to continue; abort!')
+                raise
+
         # utility
         self.html2text = html2text.HTML2Text()
         self.html2text.body_width = 0
-
-        # fetch self account information
-        try:
-            self.ms_account = self.mastodon.account_verify_credentials()
-        except Exception as e:
-            logger.exception('Failed to verify credentials: {}'.format(e))
-            logger.critical('Unable to continue; abort!')
-            raise
-
-        try:
-            self.tw_account = self.twitter.account.verify_credentials()
-        except Exception as e:
-            logger.exception('Failed to verify credentials: {}'.format(e))
-            logger.critical('Unable to continue; abort!')
-            raise
 
     def get_new_toots(self):
         res = []
 
         # fetch necessary information
-        me = self.ms_account['id']
+        my_id = self.data['mastodon_account']['id']
         last_id = self.data.get('last_toot', False)
 
         # try to get toots
@@ -207,7 +231,7 @@ class Twoot:
             # get toots for sync
             if last_id:
                 logger.debug('Getting new toots for sync')
-                r = self.mastodon.account_statuses(me, since_id=last_id)
+                r = self.mastodon.account_statuses(my_id, since_id=last_id)
 
                 logger.debug('Number of new toots: {}'.format(len(r)))
                 res = r
@@ -215,7 +239,7 @@ class Twoot:
             # get toots only for updating last_toot
             else:
                 logger.debug('Getting new toots only for fetching information')
-                r = self.mastodon.account_statuses(me)
+                r = self.mastodon.account_statuses(my_id)
 
             # update the last toot ID
             if len(r) > 0:
@@ -232,7 +256,7 @@ class Twoot:
         res = []
 
         # fetch necessary information
-        me = self.tw_account['screen_name']
+        my_id = self.data['twitter_account']['id']
         last_id = self.data.get('last_tweet', False)
 
         # try to get tweets
@@ -241,7 +265,7 @@ class Twoot:
             if last_id:
                 logger.debug('Getting new tweets for sync')
                 r = self.twitter.statuses.user_timeline(
-                    screen_name=me, since_id=last_id, tweet_mode="extended")
+                    user_id=my_id, since_id=last_id, tweet_mode="extended")
 
                 logger.debug('Number of new tweets: {}'.format(len(r)))
                 res = r
@@ -251,7 +275,7 @@ class Twoot:
                 logger.debug(
                     'Getting new tweets only for fetching information')
                 r = self.twitter.statuses.user_timeline(
-                    screen_name=me, tweet_mode="extended")
+                    user_id=my_id, tweet_mode="extended")
 
             # update the last tweet ID
             if len(r) > 0:
@@ -324,8 +348,8 @@ class Twoot:
         synced_tweets = [t['tweet_id'] for t in self.data['twoots']]
 
         in_reply_to_tweet_id = None
-        in_reply_to_screen_name = tweet['in_reply_to_screen_name']
-        me = self.tw_account['screen_name']
+        in_reply_to_user_id = tweet['in_reply_to_user_id']
+        my_id = self.data['twitter_account']['id']
 
         # skip if already forwarded
         if tweet_id in synced_tweets:
@@ -335,9 +359,9 @@ class Twoot:
             return
 
         # reply cases; a bit complecated
-        elif in_reply_to_screen_name:
+        elif in_reply_to_user_id:
             # skip reply for other users
-            if in_reply_to_screen_name != me:
+            if in_reply_to_user_id != my_id:
                 logger.debug(
                     'Skipping a tweet (id: {}) because it is a reply for other users'.
                     format(tweet_id))
@@ -388,7 +412,7 @@ class Twoot:
 
         in_reply_to_toot_id = None
         in_reply_to_account_id = toot['in_reply_to_account_id']
-        me = self.ms_account['id']
+        my_id = self.data['mastodon_account']['id']
 
         # skip if already forwarded
         if toot_id in synced_toots:
@@ -400,7 +424,7 @@ class Twoot:
         # reply cases; a bit complecated
         elif in_reply_to_account_id:
             # skip reply for other users
-            if in_reply_to_account_id != me:
+            if in_reply_to_account_id != my_id:
                 logger.debug(
                     'Skipping a toot (id: {}) because it is a reply for other users'.
                     format(toot_id))
@@ -464,21 +488,12 @@ class Twoot:
         if dry_run:
             if self.setup:
                 logger.warn(
-                    'Option --dry-run (-n) has no effect with setup mode')
+                    'Option --dry-run (-n) has no effect for setup mode')
                 dry_run = False
             else:
                 logger.debug('Dry running')
         else:
             logger.debug('Running')
-
-        # initialize data
-        if os.path.isfile(self.data_file):
-            logger.debug('Loading data file {}'.format(self.data_file))
-            with open(self.data_file) as f:
-                self.data = json.loads(f.read(), 'utf-8')
-        else:
-            logger.debug('No data file found; initialzing')
-            self.data = {'twoots': []}
 
         # tweets -> toots
         toots = self.get_new_toots()
@@ -493,9 +508,8 @@ class Twoot:
         # save data
         if not dry_run:
             logger.debug('Saving latest data to {}'.format(self.data_file))
-            with codecs.open(self.data_file, 'w', 'utf-8') as f:
-                json.dump(
-                    self.data, f, indent=4, sort_keys=True, ensure_ascii=False)
+            with open(self.data_file, 'wb') as f:
+                pickle.dump(self.data, f)
 
 
 # the application
