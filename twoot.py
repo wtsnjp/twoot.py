@@ -62,7 +62,7 @@ class Twoot:
         print('\n#1 First, decide about your application.')
 
         name = input('Name (optional; empty for "{}"): '.format(d_name))
-        url = input('Redirect URL (optional): ')
+        url = input('Website (optional): ')
 
         # set config
         if len(name) < 1:
@@ -81,7 +81,6 @@ class Twoot:
         pw = getpass(prompt='Login password (never stored): ')
 
         # register application
-        # TODO: register application redirect url
         cl_id, cl_sc = Mastodon.create_app(
             app_name, website=app_url, api_base_url=inst)
 
@@ -289,14 +288,16 @@ class Twoot:
         return res
 
     def __store_twoot(self, toot_id, tweet_id):
-        # store the twoot
+        """
+        Store a twoot (a pair of toot_id and tweet_id)
+
+        Insert the newest twoot to the HEAD of data['twoot'].
+        This is because it makes it easier to keep the number of stored twoots
+        less than max_twoots and also efficient in searching calculation.
+        """
         twoot = {'toot_id': toot_id, 'tweet_id': tweet_id}
         logger.debug('Storing a twoot: {}'.format(twoot))
-        self.data['twoots'].append(twoot)
-
-        # the number of stored twoots should <= max_twoots
-        if len(self.data['twoots']) > self.config['max_twoots']:
-            self.data['twoots'].pop(0)
+        self.data['twoots'].insert(0, twoot)
 
     def __find_paired_toot(self, tweet_id):
         for t in self.data['twoots']:
@@ -343,13 +344,15 @@ class Twoot:
         return text
 
     def __create_toot_from_tweet(self, tweet, dry_run=False):
+        my_id = self.data['twitter_account']['id']
         tweet_id = tweet['id']
         text = self.__pre_process(tweet['full_text'])
         synced_tweets = [t['tweet_id'] for t in self.data['twoots']]
 
+        # for reply and RT
+        retweeted_tweet = tweet.get('retweeted_status', None)
         in_reply_to_tweet_id = None
         in_reply_to_user_id = tweet['in_reply_to_user_id']
-        my_id = self.data['twitter_account']['id']
 
         # skip if already forwarded
         if tweet_id in synced_tweets:
@@ -358,8 +361,8 @@ class Twoot:
                 format(tweet_id))
             return
 
-        # reply cases; a bit complecated
-        elif in_reply_to_user_id:
+        # reply case; a bit complecated
+        if in_reply_to_user_id:
             # skip reply for other users
             if in_reply_to_user_id != my_id:
                 logger.debug(
@@ -370,6 +373,38 @@ class Twoot:
             # if self reply, store in_reply_to_tweet_id because possibly creating a thread
             logger.debug('The tweet (id: {}) is a self reply'.format(tweet_id))
             in_reply_to_tweet_id = tweet['in_reply_to_status_id']
+
+        # RT case; more complecated
+        if retweeted_tweet:
+            # if self RT of a synced tweet, exec BT on the paired toot
+            retweeted_tweet_id = retweeted_tweet['id']
+
+            if retweeted_tweet_id in synced_tweets:
+                target_toot = self.__find_paired_toot(retweeted_tweet_id)
+                logger.debug('Boost a toot (id: {})'.format(target_toot))
+
+                # execute BT
+                if not dry_run:
+                    try:
+                        r = self.mastodon.status_reblog(target_toot)
+
+                        # NOTE: only under development
+                        #logger.debug('Recieved toot (BT) info: {}'.format(str(r)))
+
+                    # if failed, report it
+                    except Exception as e:
+                        logger.exception(
+                            'Failed to create a toot (BT): {}'.format(e))
+
+                # no more process for RT
+                return
+
+            # otherwise, just skip
+            else:
+                logger.debug(
+                    'Skipping a tweet (id: {}) because it is an RT'.format(
+                        tweet_id))
+                return
 
         # try to create a toot
         logger.debug('Trying to toot: {}'.format(repr(text)))
@@ -505,9 +540,13 @@ class Twoot:
         if not self.setup:
             self.tweets2toots(tweets, dry_run)
 
-        # save data
+        # process the data
         if not dry_run:
-            logger.debug('Saving latest data to {}'.format(self.data_file))
+            # keep the number of stored twoots less than max_twoots
+            self.data['twoots'] = self.data['twoots'][:self.config['max_twoots']]
+
+            # save data
+            logger.debug('Saving up-to-dated data to {}'.format(self.data_file))
             with open(self.data_file, 'wb') as f:
                 pickle.dump(self.data, f)
 
