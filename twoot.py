@@ -360,12 +360,9 @@ class Twoot:
 
         return text
 
-    def __pre_process(self, text):
+    def __pre_process(self, text, remove_words=[]):
         # process HTML tags/escapes
         text = self.__html2text(text)
-
-        # no endline spaces
-        text = re.sub(r'[ \t]+\n', r'\n', text)
 
         # expand links
         links = [w for w in text.split() if urlparse(w.strip()).scheme]
@@ -375,11 +372,65 @@ class Twoot:
             url = r.headers.get('location', l)
             text = text.replace(l, url)
 
+        # remove specified words
+        for w in remove_words:
+            text = text.replace(w, '')
+
+        # no tailing spaces
+        text = re.sub(r'[ \t]+\n', r'\n', text)
+        text = re.sub(r'\s+$', r'', text)
+
         return text
 
-    def __toot(self, text, in_reply_to_id=None):
+    def __download_image(self, url):
+        """Download an image from `url`
+
+        Args:
+            url (str): the image url
+
+        Returns:
+            raw binary data
+        """
+        r = requests.get(url)
+        if r.status_code != 200:
+            logger.warn('Failed to get an image from {}'.format(url))
+            return None
+
+        c_type = r.headers['content-type']
+        if 'image' not in c_type:
+            logger.warn('Data from {} is not an image'.format(url))
+            return None
+
+        return r.content, c_type
+
+    def __post_media_to_mastodon(self, media):
+        """Get actual data of `media` from Twitter and post it to Mastodon
+
+        Args:
+            media: a Twitter media dict
+
+        Returns:
+            a Mastodon media dict
+        """
+        img, mime_type = self.__download_image(media['media_url_https'])
+
         try:
-            r = self.mastodon.status_post(text, in_reply_to_id=in_reply_to_id)
+            r = self.mastodon.media_post(img, mime_type=mime_type)
+
+            # NOTE: only under development
+            #logger.debug('Recieved media info: {}'.format(str(r)))
+
+            return r
+
+        # if failed, report it
+        except Exception as e:
+            logger.exception('Failed to post an image: {}'.format(e))
+            return None
+
+    def __toot(self, text, in_reply_to_id=None, media_ids=None):
+        try:
+            r = self.mastodon.status_post(
+                text, in_reply_to_id=in_reply_to_id, media_ids=media_ids)
 
             # NOTE: only under development
             #logger.debug('Recieved toot info: {}'.format(str(r)))
@@ -423,13 +474,7 @@ class Twoot:
         """
         my_id = self.data['twitter_account']['id']
         tweet_id = tweet['id']
-        text = self.__pre_process(tweet['full_text'])
         synced_tweets = [t['tweet_id'] for t in self.data['twoots']]
-
-        # for reply and RT
-        in_reply_to_tweet_id = None
-        in_reply_to_user_id = tweet['in_reply_to_user_id']
-        retweeted_tweet = tweet.get('retweeted_status', None)
 
         # skip if already forwarded
         if tweet_id in synced_tweets:
@@ -439,6 +484,9 @@ class Twoot:
             return
 
         # reply case; a bit complecated
+        in_reply_to_tweet_id = None
+        in_reply_to_user_id = tweet['in_reply_to_user_id']
+
         if in_reply_to_user_id:
             # skip reply for other users
             if in_reply_to_user_id != my_id:
@@ -452,6 +500,8 @@ class Twoot:
             in_reply_to_tweet_id = tweet['in_reply_to_status_id']
 
         # RT case; more complecated
+        retweeted_tweet = tweet.get('retweeted_status', None)
+
         if retweeted_tweet:
             retweeted_tweet_id = retweeted_tweet['id']
 
@@ -478,19 +528,37 @@ class Twoot:
                         tweet_id))
                 return
 
+        # treat media
+        twitter_media = tweet.get('extended_entities', {}).get('media', [])
+        mastodon_media = [
+            self.__post_media_to_mastodon(m) for m in twitter_media
+        ]
+        media_ids = [m['id'] for m in mastodon_media if m is not None]
+
+        # treat text
+        media_urls = [m['expanded_url'] for m in twitter_media]
+        text = self.__pre_process(tweet['full_text'], remove_words=media_urls)
+
         # try to create a toot
-        logger.debug('Trying to toot: {}'.format(repr(text)))
+        if media_ids:
+            logger.debug('Trying to toot: {} (with {} media)'.format(
+                repr(text), len(media_ids)))
+        else:
+            logger.debug('Trying to toot: {}'.format(repr(text)))
 
         if not dry_run:
             # NOTE: this branches are not necessary, but for calculation efficiency
             # if the tweet is in a thread and in sync, copy as a thread
             if in_reply_to_tweet_id in synced_tweets:
-                r = self.__toot(text,
-                                self.__find_paired_toot(in_reply_to_tweet_id))
+                r = self.__toot(
+                    text,
+                    in_reply_to_id=self.__find_paired_toot(
+                        in_reply_to_tweet_id),
+                    media_ids=media_ids)
 
             # otherwise, just toot it
             else:
-                r = self.__toot(text)
+                r = self.__toot(text, media_ids=media_ids)
 
             # store the twoot
             if r:
