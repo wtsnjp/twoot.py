@@ -122,7 +122,7 @@ class Twoot:
 
         return twitter
 
-    def __init__(self, setup=False, profile='default'):
+    def __init__(self, profile='default', setup=False):
         # files
         twoot_dir = os.path.expanduser('~/.' + PROG_NAME)
         if not os.path.isdir(twoot_dir):
@@ -189,7 +189,7 @@ class Twoot:
         if not self.data.get('mastodon_account', False):
             try:
                 logger.debug(
-                    'Fetch your Mastodon account information (verify credentials)'
+                    'Fetching Mastodon account information (verify credentials)'
                 )
                 self.data[
                     'mastodon_account'] = self.mastodon.account_verify_credentials(
@@ -203,7 +203,7 @@ class Twoot:
         if not self.data.get('twitter_account', False):
             try:
                 logger.debug(
-                    'Fetch your Twitter account information (verify credentials)'
+                    'Fetching Twitter account information (verify credentials)'
                 )
                 self.data[
                     'twitter_account'] = self.twitter.account.verify_credentials(
@@ -352,7 +352,7 @@ class Twoot:
 
     def __html2text(self, html):
         # basically, trust html2text
-        text = self.html2text.handle(html).strip()
+        text = self.html2text.handle(html.replace('\n', '<br>')).strip()
 
         # treat links and hashtags
         text = re.sub(r'\[#(.*?)\]\(.*?\)', r'#\1', text)
@@ -377,8 +377,7 @@ class Twoot:
             text = text.replace(w, '')
 
         # no tailing spaces
-        text = re.sub(r'[ \t]+\n', r'\n', text)
-        text = re.sub(r'\s+$', r'', text)
+        text = re.sub(r'[ \t]+\n', r'\n', text).strip()
 
         return text
 
@@ -804,7 +803,7 @@ def main():
     set_logger(log_level, log_file)
 
     # execute twoot actions
-    twoot = Twoot(setup, profile)
+    twoot = Twoot(profile, setup)
     twoot.run(dry_run)
 
 
