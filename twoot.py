@@ -18,13 +18,14 @@ Usage:
     {} [options]
 
 Options:
-    -d, --debug          Show debug messages.
-    -h, --help           Show this screen and exit.
-    -l FILE, --log=FILE  Output messages to FILE.
-    -n, --dry-run        Show what would have been transferred.
-    -q, --quiet          Show less messages.
-    -s, --setup          Execute setup mode.
-    -v, --version        Show version.
+    -d, --debug              Show debug messages.
+    -h, --help               Show this screen and exit.
+    -l FILE, --log=FILE      Output messages to FILE.
+    -n, --dry-run            Show what would have been transferred.
+    -p NAME, --profile=NAME  Use profile NAME.
+    -q, --quiet              Show less messages.
+    -s, --setup              Execute setup mode.
+    -v, --version            Show version.
 """.format(PROG_NAME)
 VERSION = "0.1.0"
 
@@ -121,13 +122,14 @@ class Twoot:
 
         return twitter
 
-    def __init__(self, setup=False):
+    def __init__(self, setup=False, profile='default'):
         # files
         twoot_dir = os.path.expanduser('~/.' + PROG_NAME)
         if not os.path.isdir(twoot_dir):
             os.mkdir(twoot_dir)
-        self.config_file = twoot_dir + '/config.json'
-        self.data_file = twoot_dir + '/data.pickle'
+        logger.debug('Selected profile: ' + profile)
+        self.config_file = twoot_dir + '/{}.json'.format(profile)
+        self.data_file = twoot_dir + '/{}.pickle'.format(profile)
 
         # config
         if setup or not os.path.isfile(self.config_file):
@@ -306,7 +308,7 @@ class Twoot:
         return res
 
     def __store_twoot(self, toot_id, tweet_id):
-        """Store a twoot (a pair of toot_id and tweet_id)
+        """Store a twoot (a pair of toot_id and tweet_id) in the data
 
         Insert the newest twoot to the HEAD of data['twoot'].
         This is because it makes it easier to keep the number of stored twoots
@@ -317,6 +319,14 @@ class Twoot:
         self.data['twoots'].insert(0, twoot)
 
     def __find_paired_toot(self, tweet_id):
+        """Returns the id of paired toot of `tweet_id`
+
+        Args:
+            tweet_id (int): Id of a tweet
+
+        Returns:
+            int: Id of the paired toot of `tweet_id`
+        """
         for t in self.data['twoots']:
             if t['tweet_id'] == tweet_id:
                 toot_id = t['toot_id']
@@ -325,6 +335,14 @@ class Twoot:
         return None
 
     def __find_paired_tweet(self, toot_id):
+        """Returns the id of paired tweet of `toot_id`
+
+        Args:
+            toot_id (int): Id of a toot
+
+        Returns:
+            int: Id of the paired tweet of `toot_id`
+        """
         for t in self.data['twoots']:
             if t['toot_id'] == toot_id:
                 tweet_id = t['tweet_id']
@@ -347,7 +365,6 @@ class Twoot:
         text = self.__html2text(text)
 
         # no endline spaces
-        # TODO: is this necessary?
         text = re.sub(r'[ \t]+\n', r'\n', text)
 
         # expand links
@@ -388,7 +405,22 @@ class Twoot:
             logger.exception('Failed to create a toot (BT): {}'.format(e))
             return None
 
-    def __create_toot_from_tweet(self, tweet, dry_run=False):
+    def create_toot_from_tweet(self, tweet, dry_run=False):
+        """Create a toot corresponding to the tweet
+
+        Try to create a toot (or BT) if `tweet` satisfy:
+
+            1. normal tweet
+            2. so-called "self retweet" (create a corresponding BT)
+            3. so-called "self reply" (create a corresponding thread)
+
+        Otherwise, the tweet will be just skipped. In case `dry_run` is True,
+        the actual post will never executed but only the messages are output.
+
+        Args:
+            tweet: a tweet dict
+            dry_run (bool): the flag
+        """
         my_id = self.data['twitter_account']['id']
         tweet_id = tweet['id']
         text = self.__pre_process(tweet['full_text'])
@@ -502,7 +534,22 @@ class Twoot:
             logger.exception('Failed to create a toot (BT): {}'.format(e))
             return None
 
-    def __create_tweet_from_toot(self, toot, dry_run=False):
+    def create_tweet_from_toot(self, toot, dry_run=False):
+        """Create a tweet corresponding to the toot
+
+        Try to create a tweet (or RT) if `toot` satisfy:
+
+            1. normal toot
+            2. so-called "self boost" (create a corresponding RT)
+            3. so-called "self reply" (create a corresponding thread)
+
+        Otherwise, the toot will be just skipped. In case `dry_run` is True,
+        the actual post will never executed but only the messages are output.
+
+        Args:
+            toot: a toot dict
+            dry_run (bool): the flag
+        """
         my_id = self.data['mastodon_account']['id']
         toot_id = toot['id']
         text = self.__pre_process(toot['content'])
@@ -591,7 +638,7 @@ class Twoot:
             #logger.debug('Processing tweet info: {}'.format(t))
 
             # create a toot if necessary
-            self.__create_toot_from_tweet(t, dry_run)
+            self.create_toot_from_tweet(t, dry_run)
 
     def toots2tweets(self, toots, dry_run=False):
         # process from the oldest one
@@ -600,7 +647,7 @@ class Twoot:
             #logger.debug('Processing toot info: {}'.format(t))
 
             # create a toot if necessary
-            self.__create_tweet_from_toot(t, dry_run)
+            self.create_tweet_from_toot(t, dry_run)
 
     def run(self, dry_run=False):
         if dry_run:
@@ -675,6 +722,7 @@ def main():
     # parse options
     args = docopt(HELP, version=VERSION)
     setup, dry_run = args['--setup'], args['--dry-run']
+    profile = args['--profile'] or 'default'
 
     # setup the logger
     log_level = 1  # info (default)
@@ -688,7 +736,7 @@ def main():
     set_logger(log_level, log_file)
 
     # execute twoot actions
-    twoot = Twoot(setup)
+    twoot = Twoot(setup, profile)
     twoot.run(dry_run)
 
 
