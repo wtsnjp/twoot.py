@@ -12,10 +12,10 @@
 #
 
 PROG_NAME = "twoot.py"
-HELP = """Sync Twitter and Mastodon nicely
+HELP = """Sync Twitter and Mastodon nicely.
 
 Usage:
-    {} [options]
+    {p} [options]
 
 Options:
     -d, --debug              Show debug messages.
@@ -26,7 +26,7 @@ Options:
     -q, --quiet              Show less messages.
     -s, --setup              Execute setup mode.
     -v, --version            Show version.
-""".format(PROG_NAME)
+""".format(p=PROG_NAME)
 VERSION = "0.1.0"
 
 # basic libraries
@@ -219,7 +219,7 @@ class Twoot:
         self.html2text.body_width = 0
 
     def get_new_toots(self):
-        """Get new toots of the author
+        """Get new toots of the author.
 
         Using account_statuses API, get the author's new toots, i.e., the toots
         from the owner's account since the last toot id, and return the list of
@@ -262,7 +262,7 @@ class Twoot:
         return res
 
     def get_new_tweets(self):
-        """Get new tweets of the author
+        """Get new tweets of the author.
 
         Using statuses/user_timeline API, get the author's new tweets, i.e.,
         the tweets from the owner's account since the last tweet id, and return
@@ -308,7 +308,7 @@ class Twoot:
         return res
 
     def __store_twoot(self, toot_id, tweet_id):
-        """Store a twoot (a pair of toot_id and tweet_id) in the data
+        """Store a twoot (a pair of toot_id and tweet_id) in the data.
 
         Insert the newest twoot to the HEAD of data['twoot'].
         This is because it makes it easier to keep the number of stored twoots
@@ -319,7 +319,7 @@ class Twoot:
         self.data['twoots'].insert(0, twoot)
 
     def __find_paired_toot(self, tweet_id):
-        """Returns the id of paired toot of `tweet_id`
+        """Returns the id of paired toot of `tweet_id`.
 
         Args:
             tweet_id (int): Id of a tweet
@@ -335,7 +335,7 @@ class Twoot:
         return None
 
     def __find_paired_tweet(self, toot_id):
-        """Returns the id of paired tweet of `toot_id`
+        """Returns the id of paired tweet of `toot_id`.
 
         Args:
             toot_id (int): Id of a toot
@@ -351,8 +351,22 @@ class Twoot:
         return None
 
     def __html2text(self, html):
+        """Convert html to text.
+
+        This process is essential for treating toots because the API of
+        Mastodon give us a toot in HTML format. This conversion is also useful
+        for tweets sometime because some specific letters (e.g., '<' and '>')
+        are encoded in character references of HTML even for the Twitter API.
+
+        Args:
+            html (str): a html text
+
+        Returns:
+            str: the plain text
+        """
         # basically, trust html2text
-        text = self.html2text.handle(html.replace('\n', '<br>')).strip()
+        html = html.replace('\n', '<br>')  # prevent line breaks removed
+        text = self.html2text.handle(html).strip()
 
         # treat links and hashtags
         text = re.sub(r'\[#(.*?)\]\(.*?\)', r'#\1', text)
@@ -361,6 +375,22 @@ class Twoot:
         return text
 
     def __pre_process(self, text, remove_words=[]):
+        """Format a text nicely before posting.
+
+        This function do four things:
+
+            1. convert HTML to plain text
+            2. expand shorten links
+            3. remove given `remove_words` such as links of attached media
+            4. delete tailing spaces
+
+        Args:
+            text (str): the text
+            remove_words (str): the list of words to remove
+
+        Returns:
+            str: the pre-processed text
+        """
         # process HTML tags/escapes
         text = self.__html2text(text)
 
@@ -382,7 +412,7 @@ class Twoot:
         return text
 
     def __download_image(self, url):
-        """Download an image from `url`
+        """Download an image from `url`.
 
         Args:
             url (str): the image url
@@ -403,7 +433,7 @@ class Twoot:
         return r.content, c_type
 
     def __post_media_to_mastodon(self, media):
-        """Get actual data of `media` from Twitter and post it to Mastodon
+        """Get actual data of `media` from Twitter and post it to Mastodon.
 
         Args:
             media: a Twitter media dict
@@ -456,7 +486,7 @@ class Twoot:
             return None
 
     def create_toot_from_tweet(self, tweet, dry_run=False):
-        """Create a toot corresponding to the tweet
+        """Create a toot corresponding to the tweet.
 
         Try to create a toot (or BT) if `tweet` satisfy:
 
@@ -602,7 +632,7 @@ class Twoot:
             return None
 
     def create_tweet_from_toot(self, toot, dry_run=False):
-        """Create a tweet corresponding to the toot
+        """Create a tweet corresponding to the toot.
 
         Try to create a tweet (or RT) if `toot` satisfy:
 
@@ -780,7 +810,7 @@ def set_logger(log_level, log_file):
 
 
 def main():
-    """The main function
+    """The main function.
 
     1. parse command line options
     2. setup the logger
