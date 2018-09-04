@@ -54,14 +54,14 @@ logger = log.getLogger('twoot')
 class Twoot:
     def __app_questions(self):
         # defaults
-        d_name = 'Twoot'
-        d_url = None
+        d_name = 'twoot.py'
+        d_url = 'https://github.com/wtsnjp/twoot.py'
 
         # ask questions
         print('\n#1 First, decide about your application.')
 
         name = input('Name (optional; empty for "{}"): '.format(d_name))
-        url = input('Website (optional): ')
+        url = input('Website (optional; empty for "{}"): '.format(d_url))
 
         # set config
         if len(name) < 1:
@@ -175,6 +175,8 @@ class Twoot:
                                    tw['access_token_secret'],
                                    tw['consumer_key'], tw['consumer_secret'])
             self.twitter = Twitter.Twitter(auth=t_auth)
+            self.twitter_upload = Twitter.Twitter(
+                domain='upload.twitter.com', auth=t_auth)
 
         # data
         if os.path.isfile(self.data_file):
@@ -601,12 +603,36 @@ class Twoot:
                     'Forwarded a tweet (id: {}) as a toot (id: {})'.format(
                         tweet_id, toot_id))
 
-    def __tweet(self, text, in_reply_to_id=None):
+    def __post_media_to_twitter(self, media):
+        """Get actual data of `media` from Mastodon and post it to Twitter.
+
+        Args:
+            media: a Mastodon media dict
+
+        Returns:
+            a Twitter media dict
+        """
+        img, mime_type = self.__download_image(media['url'])
+
         try:
-            # TODO: just switch this line after getting API keys
-            r = None
-            #r = self.twitter.statuses.update(
-            #    status=text, in_reply_to_status_id=in_reply_to_id)
+            r = self.twitter_upload.media.upload(media=img)
+
+            # NOTE: only under development
+            #logger.debug('Recieved media info: {}'.format(str(r)))
+
+            return r
+
+        # if failed, report it
+        except Exception as e:
+            logger.exception('Failed to post an image: {}'.format(e))
+            return None
+
+    def __tweet(self, text, in_reply_to_id=None, media_ids=None):
+        try:
+            r = self.twitter.statuses.update(
+                status=text,
+                in_reply_to_status_id=in_reply_to_id,
+                media_ids=','.join(media_ids))
 
             # NOTE: only under development
             #logger.debug('Recieved tweet info: {}'.format(str(r)))
@@ -620,9 +646,7 @@ class Twoot:
 
     def __retweet(self, target_id):
         try:
-            # TODO: just switch this line after getting API keys
-            r = None
-            #r = self.twitter.statuses.retweet(target_id)
+            r = self.twitter.statuses.retweet(_id=target_id)
 
             # NOTE: only under development
             #logger.debug('Recieved toot (BT) info: {}'.format(str(r)))
@@ -631,7 +655,7 @@ class Twoot:
 
         # if failed, report it
         except Exception as e:
-            logger.exception('Failed to create a toot (BT): {}'.format(e))
+            logger.exception('Failed to create a tweet (RT): {}'.format(e))
             return None
 
     def create_tweet_from_toot(self, toot, dry_run=False):
@@ -652,13 +676,7 @@ class Twoot:
         """
         my_id = self.data['mastodon_account']['id']
         toot_id = toot['id']
-        text = self.__pre_process(toot['content'])
         synced_toots = [t['toot_id'] for t in self.data['twoots']]
-
-        # for reply and BT
-        in_reply_to_toot_id = None
-        in_reply_to_account_id = toot['in_reply_to_account_id']
-        boosted_toot = toot.get('reblog', None)
 
         # skip if already forwarded
         if toot_id in synced_toots:
@@ -668,7 +686,10 @@ class Twoot:
             return
 
         # reply case; a bit complecated
-        elif in_reply_to_account_id:
+        in_reply_to_toot_id = None
+        in_reply_to_account_id = toot['in_reply_to_account_id']
+
+        if in_reply_to_account_id:
             # skip reply for other users
             if in_reply_to_account_id != my_id:
                 logger.debug(
@@ -681,6 +702,8 @@ class Twoot:
             in_reply_to_toot_id = toot['in_reply_to_id']
 
         # BT case; more complecated
+        boosted_toot = toot.get('reblog', None)
+
         if boosted_toot:
             boosted_toot_id = boosted_toot['id']
 
@@ -708,19 +731,38 @@ class Twoot:
                         toot_id))
                 return
 
+        # treat media
+        mastodon_media = toot.get('media_attachments', [])
+        twitter_media = [
+            self.__post_media_to_twitter(m) for m in mastodon_media
+        ]
+        media_ids = [
+            m['media_id_string'] for m in twitter_media if m is not None
+        ]
+
+        # treat text
+        text = self.__pre_process(toot['content'])
+
         # try to create a tweet
-        logger.debug('Trying to tweet: {}'.format(repr(text)))
+        if media_ids:
+            logger.debug('Trying to tweet: {} (with {} media)'.format(
+                repr(text), len(media_ids)))
+        else:
+            logger.debug('Trying to tweet: {}'.format(repr(text)))
 
         if not dry_run:
             # NOTE: this branches are not necessary, but for calculation efficiency
             # if the toot is in a thread and in sync, copy as a thread
             if in_reply_to_toot_id in synced_toots:
-                r = self.__tweet(text,
-                                 self.__find_paired_tweet(in_reply_to_toot_id))
+                r = self.__tweet(
+                    text,
+                    in_reply_to_id=self.__find_paired_tweet(
+                        in_reply_to_toot_id),
+                    media_ids=media_ids)
 
             # otherwise, just tweet it
             else:
-                r = self.__tweet(text)
+                r = self.__tweet(text, media_ids=media_ids)
 
             # store the twoot
             if r:
