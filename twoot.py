@@ -519,11 +519,12 @@ class Twoot:
 
         # reply case; a bit complecated
         in_reply_to_tweet_id = None
-        in_reply_to_user_id = tweet['in_reply_to_user_id']
+        in_reply_to_user_id = tweet.get('in_reply_to_user_id', None)
+        user_mentions = tweet.get('entities', {}).get('user_mentions', [])
 
         if in_reply_to_user_id:
             # skip reply for other users
-            if in_reply_to_user_id != my_id:
+            if in_reply_to_user_id != my_id or len(user_mentions) > 1:
                 logger.debug(
                     'Skipping a tweet (id: {}) because it is a reply for other users'.
                     format(tweet_id))
