@@ -368,10 +368,9 @@ class Twoot:
         """
         # basically, trust html2text
         html = html.replace('\n', '<br>')  # prevent line breaks removed
+        html = html.replace('\\', '&#92;')  # do not escape backslash
+        html = html.replace('-', '&#45;')  # do not escape hyphen
         text = self.html2text.handle(html).strip()
-
-        # remove escapes
-        text = re.sub(r'(^|\n)\\-', r'\1-', text)
 
         # treat links and hashtags
         text = re.sub(r'\[#(.*?)\]\(.*?\)', r'#\1', text)
