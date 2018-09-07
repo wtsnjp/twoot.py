@@ -27,7 +27,7 @@ Options:
     -s, --setup              Execute setup mode.
     -v, --version            Show version.
 """.format(p=PROG_NAME)
-VERSION = "0.1.0"
+VERSION = "1.0.0"
 
 # basic libraries
 import os
