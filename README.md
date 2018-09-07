@@ -1,6 +1,11 @@
-# twoot.py (v0.1.0)
+# twoot.py (v1.0.0)
 
-Sync Twitter and Mastodon nicely ― forward tweets to Mastodon and forward toots to Twitter, carefully not to make duplicate posts on a service.
+Sync Twitter and Mastodon nicely ― forward tweets to Mastodon and forward toots to Twitter, carefully not to make duplicate posts on a service. Other features of twoot.py:
+
+* images are also forwarded each other,
+* sync so-called "thread" and "self BT/RT" as well,
+* shortened URLs (such as `https://t.co/*`) are expanded before posting, and
+* multiple pairs of Mastodon/Twitter accounts are supported.
 
 ## Requirements
 
@@ -16,38 +21,48 @@ $ python3 setup.py install
 
 ## Usage
 
-After installing the script, run it once by yourself to fill the following fields:
+### Setup running
+
+After installing the script, run `twoot.py` once by hand and fill the following fields:
 
 ```
 $ python3 twoot.py
 Welcome to Twoot! Please answer a few questions.
 
 #1 First, decide about your application.
-Name (optional; empty for "Twoot"):
-Redirect URL (optional; empty for "https://github.com/wtsnjp/twoot.py"):
+Name (optional; empty for "twoot.py"): 
+Website (optional; empty for "https://github.com/wtsnjp/twoot.py"): 
 
 #2 Tell me about your Mastodon account.
 Instance (e.g., https://mastodon.social): 
 Login e-mail (never stored): 
-Login password (never stored):
+Login password (never stored): 
 
 #3 Tell me about your Twitter account.
-cf. Keys and tokens can be get from https://developer.twitter.com/
+cf. You can get keys and tokens from https://developer.twitter.com/
 API key: 
 API secret key: 
 Access token: 
 Access token secret: 
+
+All configuration done. Thanks!
 ```
 
-When this setup run is completed successfully, all necessary configuration will be stored under `$HOME/.twoot.py`. No toots nor tweets are sent by setup run.
+When the setup mode is completed successfully, all necessary configuration will be stored under `$HOME/.twoot.py`. No toots nor tweets are sent within the setup mode.
 
-> Note: If you want to change these configuration, delete `$HOME/.twoot.py` to execute the setup run again or just edit `$HOME/.twoot.py/config.json` directly.
+> Note: If you want to change these configuration, execute `python3 twoot.py --setup` to start setup mode once again or just edit `$HOME/.twoot.py/default.json` directly.
 
-After the setup run, setup cron (or whatever) to run `python3 twoot.py` regularly, e.g., running every 15 sec:
+### Regular running
+
+After the setup running, set cron (or whatever) to run `python3 twoot.py` regularly, e.g., running every 15 sec:
 
 ```
-* * * * * for i in `seq 0 15 59`;do (sleep ${i}; python3 twoot.py) & done;
+* * * * * for i in `seq 0 15 59`;do (sleep ${i}; python3 /path/to/twoot.py --log=/path/to/twoot.log) & done;
 ```
+
+### Using profile
+
+You can detect a profile with the command line option `--profile` (`-p`) to use this script for multiple accounts. The configuration and the data for a profile `NAME` are saved to `~/.twoot.py/NAME.json` and `~/.twoot.py/NAME.pickle` respectively. When you omit the command line option, the "default" profile is automatically selected.
 
 ## License
 
