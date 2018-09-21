@@ -816,6 +816,17 @@ class Twoot:
             # create a toot if necessary
             self.create_tweet_from_toot(t, dry_run)
 
+    def save_data(self):
+        # keep the number of stored twoots less than max_twoots
+        self.data['twoots'] = self.data['twoots'][:self.config[
+            'max_twoots']]
+
+        # save data
+        logger.debug('Saving up-to-dated data to {}'.format(
+            self.data_file))
+        with open(self.data_file, 'wb') as f:
+            pickle.dump(self.data, f)
+
     def run(self, dry_run=False):
         if dry_run:
             if self.setup:
@@ -829,25 +840,20 @@ class Twoot:
 
         # tweets -> toots
         toots = self.get_new_toots()
+        if len(toots) > 0 and not dry_run:
+            self.save_data()
+
         if not self.setup:
             self.toots2tweets(toots, dry_run)
 
         # toots -> tweets
         tweets = self.get_new_tweets()
+        if len(tweets) > 0 and not dry_run:
+            self.save_data()
+
         if not self.setup:
             self.tweets2toots(tweets, dry_run)
-
-        # process the data
-        if not dry_run:
-            # keep the number of stored twoots less than max_twoots
-            self.data['twoots'] = self.data['twoots'][:self.config[
-                'max_twoots']]
-
-            # save data
-            logger.debug('Saving up-to-dated data to {}'.format(
-                self.data_file))
-            with open(self.data_file, 'wb') as f:
-                pickle.dump(self.data, f)
+            self.save_data()
 
 
 # the application
