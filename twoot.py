@@ -402,9 +402,18 @@ class Twoot:
         links = [w for w in text.split() if urlparse(w.strip()).scheme]
 
         for l in links:
-            r = requests.head(l)
-            url = r.headers.get('location', l)
-            text = text.replace(l, url)
+            # check the link
+            if not re.match(r'http(s|)://', l):
+                continue
+
+            # expand link with HTTP(S) HEAD request
+            try:
+                r = requests.head(l)
+                url = r.headers.get('location', l)
+                text = text.replace(l, url)
+
+            except Exception as e:
+                logger.exception('HTTP(S) HEAD request failed: {}'.format(e))
 
         # remove specified words
         for w in remove_words:
@@ -564,19 +573,27 @@ class Twoot:
 
         # treat media
         twitter_media = tweet.get('extended_entities', {}).get('media', [])
-        mastodon_media = [
-            self.__post_media_to_mastodon(m) for m in twitter_media
-        ]
-        media_ids = [m['id'] for m in mastodon_media if m is not None]
+        media_num = 0
+
+        # if dry run, don't upload
+        if dry_run:
+            media_num = len(twitter_media)
+
+        else:
+            mastodon_media = [
+                self.__post_media_to_mastodon(m) for m in twitter_media
+            ]
+            media_ids = [m['id'] for m in mastodon_media if m is not None]
+            media_num = len(media_ids)
 
         # treat text
         media_urls = [m['expanded_url'] for m in twitter_media]
         text = self.__pre_process(tweet['full_text'], remove_words=media_urls)
 
         # try to create a toot
-        if media_ids:
+        if media_num > 0:
             logger.debug('Trying to toot: {} (with {} media)'.format(
-                repr(text), len(media_ids)))
+                repr(text), media_num))
         else:
             logger.debug('Trying to toot: {}'.format(repr(text)))
 
@@ -733,20 +750,28 @@ class Twoot:
 
         # treat media
         mastodon_media = toot.get('media_attachments', [])
-        twitter_media = [
-            self.__post_media_to_twitter(m) for m in mastodon_media
-        ]
-        media_ids = [
-            m['media_id_string'] for m in twitter_media if m is not None
-        ]
+        media_num = 0
+
+        # if dry run, don't upload
+        if dry_run:
+            media_num = len(mastodon_media)
+
+        else:
+            twitter_media = [
+                self.__post_media_to_twitter(m) for m in mastodon_media
+            ]
+            media_ids = [
+                m['media_id_string'] for m in twitter_media if m is not None
+            ]
+            media_num = len(media_ids)
 
         # treat text
         text = self.__pre_process(toot['content'])
 
         # try to create a tweet
-        if media_ids:
+        if media_num > 0:
             logger.debug('Trying to tweet: {} (with {} media)'.format(
-                repr(text), len(media_ids)))
+                repr(text), media_num))
         else:
             logger.debug('Trying to tweet: {}'.format(repr(text)))
 
