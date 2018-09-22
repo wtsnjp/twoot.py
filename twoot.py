@@ -25,6 +25,7 @@ Options:
     -p NAME, --profile=NAME  Use profile NAME.
     -q, --quiet              Show less messages.
     -s, --setup              Execute setup mode.
+    -u, --update             Update data (only effective with -n).
     -v, --version            Show version.
 """.format(p=PROG_NAME)
 VERSION = "1.0.0"
@@ -179,6 +180,8 @@ class Twoot:
                 domain='upload.twitter.com', auth=t_auth)
 
         # data
+        self.twoots = []
+
         if os.path.isfile(self.data_file):
             logger.debug('Loading data file {}'.format(self.data_file))
             with open(self.data_file, 'rb') as f:
@@ -220,7 +223,18 @@ class Twoot:
         self.html2text = html2text.HTML2Text()
         self.html2text.body_width = 0
 
-    def get_new_toots(self):
+    def __update_last_id(self, key, value):
+        """Update the last id (last_toot or last_tweet) in the data file."""
+        # load the latest data
+        with open(self.data_file, 'rb') as f:
+            data = pickle.load(f)
+
+        # update the target
+        data[key] = value
+        with open(self.data_file, 'wb') as f:
+            pickle.dump(data, f)
+
+    def get_new_toots(self, dry_run=False, update=False):
         """Get new toots of the author.
 
         Using account_statuses API, get the author's new toots, i.e., the toots
@@ -255,15 +269,19 @@ class Twoot:
             # update the last toot ID
             if len(r) > 0:
                 new_last_id = r[0]['id']  # r[0] is the latest
-                logger.debug('Updating the last toot: {}'.format(new_last_id))
-                self.data['last_toot'] = new_last_id
+
+                # update the data file immediately
+                if not dry_run or update:
+                    logger.debug(
+                        'Updating the last toot: {}'.format(new_last_id))
+                    self.__update_last_id('last_toot', new_last_id)
 
         except Exception as e:
             logger.exception('Failed to get new toots: {}'.format(e))
 
         return res
 
-    def get_new_tweets(self):
+    def get_new_tweets(self, dry_run=False, update=False):
         """Get new tweets of the author.
 
         Using statuses/user_timeline API, get the author's new tweets, i.e.,
@@ -301,8 +319,12 @@ class Twoot:
             # update the last tweet ID
             if len(r) > 0:
                 new_last_id = r[0]['id']  # r[0] is the latest
-                logger.debug('Updating the last tweet: {}'.format(new_last_id))
-                self.data['last_tweet'] = new_last_id
+
+                # update the data file immediately
+                if not dry_run or update:
+                    logger.debug(
+                        'Updating the last tweet: {}'.format(new_last_id))
+                    self.__update_last_id('last_tweet', new_last_id)
 
         except Exception as e:
             logger.exception('Failed to get new tweets: {}'.format(e))
@@ -318,7 +340,7 @@ class Twoot:
         """
         twoot = {'toot_id': toot_id, 'tweet_id': tweet_id}
         logger.debug('Storing a twoot: {}'.format(twoot))
-        self.data['twoots'].insert(0, twoot)
+        self.twoots.insert(0, twoot)
 
     def __find_paired_toot(self, tweet_id):
         """Returns the id of paired toot of `tweet_id`.
@@ -329,7 +351,7 @@ class Twoot:
         Returns:
             int: Id of the paired toot of `tweet_id`
         """
-        for t in self.data['twoots']:
+        for t in self.twoots + self.data['twoots']:
             if t['tweet_id'] == tweet_id:
                 toot_id = t['toot_id']
                 return toot_id
@@ -345,7 +367,7 @@ class Twoot:
         Returns:
             int: Id of the paired tweet of `toot_id`
         """
-        for t in self.data['twoots']:
+        for t in self.twoots + self.data['twoots']:
             if t['toot_id'] == toot_id:
                 tweet_id = t['tweet_id']
                 return tweet_id
@@ -516,7 +538,9 @@ class Twoot:
         """
         my_id = self.data['twitter_account']['id']
         tweet_id = tweet['id']
-        synced_tweets = [t['tweet_id'] for t in self.data['twoots']]
+        synced_tweets = [
+            t['tweet_id'] for t in self.twoots + self.data['twoots']
+        ]
 
         # skip if already forwarded
         if tweet_id in synced_tweets:
@@ -693,7 +717,9 @@ class Twoot:
         """
         my_id = self.data['mastodon_account']['id']
         toot_id = toot['id']
-        synced_toots = [t['toot_id'] for t in self.data['twoots']]
+        synced_toots = [
+            t['toot_id'] for t in self.twoots + self.data['twoots']
+        ]
 
         # skip if already forwarded
         if toot_id in synced_toots:
@@ -816,18 +842,23 @@ class Twoot:
             # create a toot if necessary
             self.create_tweet_from_toot(t, dry_run)
 
-    def save_data(self):
+    def __save_data(self):
+        """Save up-to-dated data (twoots) to the data file."""
+        # load the latest data
+        with open(self.data_file, 'rb') as f:
+            data = pickle.load(f)
+
+        # concat the new twoots to data
+        data['twoots'] += self.twoots
+
         # keep the number of stored twoots less than max_twoots
-        self.data['twoots'] = self.data['twoots'][:self.config[
-            'max_twoots']]
+        data['twoots'] = data['twoots'][:self.config['max_twoots']]
 
         # save data
-        logger.debug('Saving up-to-dated data to {}'.format(
-            self.data_file))
         with open(self.data_file, 'wb') as f:
-            pickle.dump(self.data, f)
+            pickle.dump(data, f)
 
-    def run(self, dry_run=False):
+    def run(self, dry_run=False, update=False):
         if dry_run:
             if self.setup:
                 logger.warn(
@@ -839,21 +870,20 @@ class Twoot:
             logger.debug('Running')
 
         # tweets -> toots
-        toots = self.get_new_toots()
-        if len(toots) > 0 and not dry_run:
-            self.save_data()
-
+        toots = self.get_new_toots(dry_run, update)
         if not self.setup:
             self.toots2tweets(toots, dry_run)
 
         # toots -> tweets
-        tweets = self.get_new_tweets()
-        if len(tweets) > 0 and not dry_run:
-            self.save_data()
-
+        tweets = self.get_new_tweets(dry_run, update)
         if not self.setup:
             self.tweets2toots(tweets, dry_run)
-            self.save_data()
+
+        # update the entire data
+        if len(self.twoots) > 0:
+            logger.debug('Saving up-to-dated data to {}'.format(
+                self.data_file))
+            self.__save_data()
 
 
 # the application
@@ -894,7 +924,8 @@ def main():
     """
     # parse options
     args = docopt(HELP, version=VERSION)
-    setup, dry_run = args['--setup'], args['--dry-run']
+    setup = args['--setup']
+    dry_run, update = args['--dry-run'], args['--update']
     profile = args['--profile'] or 'default'
 
     # setup the logger
@@ -910,7 +941,7 @@ def main():
 
     # execute twoot actions
     twoot = Twoot(profile, setup)
-    twoot.run(dry_run)
+    twoot.run(dry_run, update)
 
 
 if __name__ == '__main__':
