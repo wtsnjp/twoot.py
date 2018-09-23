@@ -388,10 +388,17 @@ class Twoot:
         Returns:
             str: the plain text
         """
+        # prevent removing line break & char escapes
+        escapeable = [
+            ('\n', '<br>'),  # line break
+            ('\\', '&#92;'),  # backslash
+            ('-', '&#45;'),  # hyphen
+            ('.', '&#46;'),  # period
+        ]
+        for p in escapeable:
+            html = html.replace(p[0], p[1])
+
         # basically, trust html2text
-        html = html.replace('\n', '<br>')  # prevent line breaks removed
-        html = html.replace('\\', '&#92;')  # do not escape backslash
-        html = html.replace('-', '&#45;')  # do not escape hyphen
         text = self.html2text.handle(html).strip()
 
         # treat links and hashtags
