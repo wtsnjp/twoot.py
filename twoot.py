@@ -34,6 +34,7 @@ VERSION = "1.0.0"
 import os
 import re
 import json
+import fcntl
 import pickle
 from getpass import getpass
 from urllib.parse import urlparse
@@ -927,7 +928,7 @@ def main():
 
     1. parse command line options
     2. setup the logger
-    3. execute twoot actions
+    3. execute twoot actions (make sure to be a singleton)
     """
     # parse options
     args = docopt(HELP, version=VERSION)
@@ -946,9 +947,18 @@ def main():
 
     set_logger(log_level, log_file)
 
-    # execute twoot actions
-    twoot = Twoot(profile, setup)
-    twoot.run(dry_run, update)
+    # make sure to be a singleton
+    lf = os.path.expanduser('~/.' + PROG_NAME + '/lockfile.lock')
+    with open(lf, 'w') as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            # execute twoot actions
+            twoot = Twoot(profile, setup)
+            twoot.run(dry_run, update)
+
+        except IOError:
+            logger.debug('Process already exists')
 
 
 if __name__ == '__main__':
