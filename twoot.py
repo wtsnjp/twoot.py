@@ -393,6 +393,7 @@ class Twoot:
         escapeable = [
             ('\n', '<br>'),  # line break
             ('\\', '&#92;'),  # backslash
+            ('+', '&#43;'),  # plus
             ('-', '&#45;'),  # hyphen
             ('.', '&#46;'),  # period
         ]
