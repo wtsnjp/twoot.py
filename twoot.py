@@ -227,8 +227,11 @@ class Twoot:
     def __update_last_id(self, key, value):
         """Update the last id (last_toot or last_tweet) in the data file."""
         # load the latest data
-        with open(self.data_file, 'rb') as f:
-            data = pickle.load(f)
+        if os.path.isfile(self.data_file):
+            with open(self.data_file, 'rb') as f:
+                data = pickle.load(f)
+        else:
+            data = {'twoots': []}
 
         # update the target
         data[key] = value
@@ -858,7 +861,7 @@ class Twoot:
             data = pickle.load(f)
 
         # concat the new twoots to data
-        data['twoots'] += self.twoots
+        data['twoots'] = self.twoots + data['twoots']
 
         # keep the number of stored twoots less than max_twoots
         data['twoots'] = data['twoots'][:self.config['max_twoots']]
