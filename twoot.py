@@ -3,7 +3,7 @@
 #
 # This is file `twoot.py'.
 #
-# Copyright (c) 2018 Takuto ASAKURA (wtsnjp)
+# Copyright 2018 Takuto ASAKURA (wtsnjp)
 #   GitHub:   https://github.com/wtsnjp
 #   Twitter:  @wtsnjp
 #   Mastodon: @wtsnjp@mstdn.jp
