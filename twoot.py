@@ -570,8 +570,8 @@ class Twoot:
             # skip reply for other users
             if in_reply_to_user_id != my_id or len(user_mentions) > 1:
                 logger.debug(
-                    'Skipping a tweet (id: {}) because it is a reply for other users'.
-                    format(tweet_id))
+                    'Skipping a tweet (id: {}) because it is a reply for other users'
+                    .format(tweet_id))
                 return
 
             # if self reply, store in_reply_to_tweet_id because possibly creating a thread
@@ -602,9 +602,8 @@ class Twoot:
 
             # otherwise, just skip
             else:
-                logger.debug(
-                    'Skipping a tweet (id: {}) because it is an RT'.format(
-                        tweet_id))
+                logger.debug('Skipping a tweet (id: {}) because it is an RT'.
+                             format(tweet_id))
                 return
 
         # treat media
@@ -748,8 +747,8 @@ class Twoot:
             # skip reply for other users
             if in_reply_to_account_id != my_id:
                 logger.debug(
-                    'Skipping a toot (id: {}) because it is a reply for other users'.
-                    format(toot_id))
+                    'Skipping a toot (id: {}) because it is a reply for other users'
+                    .format(toot_id))
                 return
 
             # if self reply, store in_reply_to_toot_id because possibly creating a thread
@@ -781,9 +780,8 @@ class Twoot:
 
             # otherwise, just skip
             else:
-                logger.debug(
-                    'Skipping a toot (id: {}) because it is a BT'.format(
-                        toot_id))
+                logger.debug('Skipping a toot (id: {}) because it is a BT'.
+                             format(toot_id))
                 return
 
         # treat media
