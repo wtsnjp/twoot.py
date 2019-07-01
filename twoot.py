@@ -168,6 +168,7 @@ class Twoot:
 
             # setup Mastodon
             ms = self.config['mastodon']
+            # Note: for HTTP debugging, set debug_requests=True
             self.mastodon = Mastodon(
                 access_token=ms['access_token'], api_base_url=ms['instance'])
 
