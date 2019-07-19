@@ -221,6 +221,10 @@ class Twoot:
                 logger.critical('Unable to continue; abort!')
                 raise
 
+        # save data anyway
+        with open(self.data_file, 'wb') as f:
+            pickle.dump(self.data, f)
+
         # utility
         self.html2text = html2text.HTML2Text()
         self.html2text.body_width = 0

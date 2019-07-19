@@ -89,5 +89,6 @@ ENV/
 # Rope project settings
 .ropeproject
 
-# local dir
+# local file/dir
 mastodon/
+*.log.*
