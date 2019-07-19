@@ -164,7 +164,7 @@ class Twoot:
             # load config
             logger.debug('Loading config file {}'.format(self.config_file))
             with open(self.config_file) as f:
-                self.config = json.loads(f.read(), 'utf-8')
+                self.config = json.loads(f.read(), encoding='utf-8')
 
             # setup Mastodon
             ms = self.config['mastodon']
