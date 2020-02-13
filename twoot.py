@@ -458,6 +458,9 @@ class Twoot:
         for w in remove_words:
             text = text.replace(w, '')
 
+        # prevent mentions
+        text = re.sub(r'([\s\n])@([_\w\d])', r'\1@.\2', text)
+
         # no tailing spaces
         text = re.sub(r'[ \t]+\n', r'\n', text).strip()
 
