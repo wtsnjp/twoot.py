@@ -102,7 +102,7 @@ class Twoot:
         # ask questions
         print('\n#3 Tell me about your Twitter account.')
         print(
-            'cf. You can get keys and tokens from https://developer.twitter.com/'
+            'cf. You can get keys & tokens from https://developer.twitter.com/'
         )
 
         cs_key = input('API key: ')
@@ -194,13 +194,12 @@ class Twoot:
 
         # fetch self account information
         if not self.data.get('mastodon_account', False):
+            ms_avc = self.mastodon.account_verify_credentials
             try:
                 logger.debug(
                     'Fetching Mastodon account information (verify credentials)'
                 )
-                self.data[
-                    'mastodon_account'] = self.mastodon.account_verify_credentials(
-                    )
+                self.data['mastodon_account'] = ms_avc()
             except Exception as e:
                 logger.exception(
                     'Failed to verify credentials for Mastodon: {}'.format(e))
@@ -208,13 +207,12 @@ class Twoot:
                 raise
 
         if not self.data.get('twitter_account', False):
+            tw_avc = self.twitter.account.verify_credentials
             try:
                 logger.debug(
                     'Fetching Twitter account information (verify credentials)'
                 )
-                self.data[
-                    'twitter_account'] = self.twitter.account.verify_credentials(
-                    )
+                self.data['twitter_account'] = tw_avc()
             except Exception as e:
                 logger.exception(
                     'Failed to verify credentials for Twitter: {}'.format(e))
@@ -425,7 +423,8 @@ class Twoot:
             1. convert HTML to plain text
             2. expand shorten links
             3. remove given `remove_words` such as links of attached media
-            4. delete tailing spaces
+            4. search usernames and escape by adding a dot (.) if any
+            5. delete tailing spaces
 
         Args:
             text (str): the text
@@ -562,11 +561,13 @@ class Twoot:
             t['tweet_id'] for t in self.twoots + self.data['twoots']
         ]
 
+        def debug_skip(tw_id, reason):
+            logger.debug('Skipping a tweet (id: {}) because {}'.format(
+                tw_id, reason))
+
         # skip if already forwarded
         if tweet_id in synced_tweets:
-            logger.debug(
-                'Skipping a tweet (id: {}) because it is already forwarded'.
-                format(tweet_id))
+            debug_skip(tweet_id, 'it is already forwarded')
             return
 
         # reply case; a bit complecated
@@ -577,12 +578,10 @@ class Twoot:
         if in_reply_to_user_id:
             # skip reply for other users
             if in_reply_to_user_id != my_id or len(user_mentions) > 1:
-                logger.debug(
-                    'Skipping a tweet (id: {}) because it is a reply for other users'
-                    .format(tweet_id))
+                debug_skip(tweet_id, 'it is a reply for other users')
                 return
 
-            # if self reply, store in_reply_to_tweet_id because possibly creating a thread
+            # if self reply, store in_reply_to_tweet_id for creating a thread
             logger.debug('The tweet (id: {}) is a self reply'.format(tweet_id))
             in_reply_to_tweet_id = tweet['in_reply_to_status_id']
 
@@ -610,8 +609,7 @@ class Twoot:
 
             # otherwise, just skip
             else:
-                logger.debug('Skipping a tweet (id: {}) because it is an RT'.
-                             format(tweet_id))
+                debug_skip(tweet_id, 'it is an RT')
                 return
 
         # treat media
@@ -641,7 +639,7 @@ class Twoot:
             logger.debug('Trying to toot: {}'.format(repr(text)))
 
         if not dry_run:
-            # NOTE: this branches are not necessary, but for calculation efficiency
+            # NOTE: these branches are for calculation efficiency
             # if the tweet is in a thread and in sync, copy as a thread
             if in_reply_to_tweet_id in synced_tweets:
                 r = self.__toot(
@@ -740,11 +738,13 @@ class Twoot:
             t['toot_id'] for t in self.twoots + self.data['twoots']
         ]
 
+        def debug_skip(tt_id, reason):
+            logger.debug('Skipping a toot (id: {}) because {}'.format(
+                tt_id, reason))
+
         # skip if already forwarded
         if toot_id in synced_toots:
-            logger.debug(
-                'Skipping a toot (id: {}) because it is already forwarded'.
-                format(toot_id))
+            debug_skip(toot_id, 'it is already forwarded')
             return
 
         # reply case; a bit complecated
@@ -754,12 +754,10 @@ class Twoot:
         if in_reply_to_account_id:
             # skip reply for other users
             if in_reply_to_account_id != my_id:
-                logger.debug(
-                    'Skipping a toot (id: {}) because it is a reply for other users'
-                    .format(toot_id))
+                debug_skip(toot_id, 'it is a reply for other users')
                 return
 
-            # if self reply, store in_reply_to_toot_id because possibly creating a thread
+            # if self reply, store in_reply_to_toot_id for creating a thread
             logger.debug('The toot (id: {}) is a self reply'.format(toot_id))
             in_reply_to_toot_id = toot['in_reply_to_id']
 
@@ -788,8 +786,7 @@ class Twoot:
 
             # otherwise, just skip
             else:
-                logger.debug('Skipping a toot (id: {}) because it is a BT'.
-                             format(toot_id))
+                debug_skip(toot_id, 'because it is a BT')
                 return
 
         # treat media
@@ -820,7 +817,7 @@ class Twoot:
             logger.debug('Trying to tweet: {}'.format(repr(text)))
 
         if not dry_run:
-            # NOTE: this branches are not necessary, but for calculation efficiency
+            # NOTE: these branches are for calculation efficiency
             # if the toot is in a thread and in sync, copy as a thread
             if in_reply_to_toot_id in synced_toots:
                 r = self.__tweet(

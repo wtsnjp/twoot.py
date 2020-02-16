@@ -9,14 +9,14 @@ Sync Twitter and Mastodon nicely ― forward tweets to Mastodon and forward toot
 
 ## Requirements
 
-This script is designed to work with Python3 (3.5 or later).
+This script is designed to work with Python (3.5 or later).
 
 ## Installation
 
 All dependencies can be installed by one shot:
 
 ```
-$ python3 setup.py install
+$ python setup.py install
 ```
 
 ## Usage
@@ -26,7 +26,7 @@ $ python3 setup.py install
 After installing the script, run `twoot.py` once by hand and fill the following fields:
 
 ```
-$ python3 twoot.py
+$ python twoot.py
 Welcome to Twoot! Please answer a few questions.
 
 #1 First, decide about your application.
@@ -39,7 +39,7 @@ Login e-mail (never stored):
 Login password (never stored): 
 
 #3 Tell me about your Twitter account.
-cf. You can get keys and tokens from https://developer.twitter.com/
+cf. You can get keys & tokens from https://developer.twitter.com/
 API key: 
 API secret key: 
 Access token: 
@@ -50,14 +50,14 @@ All configuration done. Thanks!
 
 When the setup mode is completed successfully, all necessary configuration will be stored under `$HOME/.twoot.py`. No toots nor tweets are sent within the setup mode.
 
-> Note: If you want to change these configuration, execute `python3 twoot.py --setup` to start setup mode once again or just edit `$HOME/.twoot.py/default.json` directly.
+> Note: If you want to change these configuration, execute `python twoot.py --setup` to start setup mode once again or just edit `$HOME/.twoot.py/default.json` directly.
 
 ### Regular running
 
-After the setup running, set cron (or whatever) to run `python3 twoot.py` regularly, e.g., running every 15 sec:
+After the setup running, set cron (or whatever) to run `python twoot.py` regularly, e.g., running every 15 sec:
 
 ```
-* * * * * for i in `seq 0 15 59`;do (sleep ${i}; python3 /path/to/twoot.py --log=/path/to/twoot.log) & done;
+* * * * * for i in `seq 0 15 59`;do (sleep ${i}; python /path/to/twoot.py --log=/path/to/twoot.log) & done;
 ```
 
 ### Using profile
