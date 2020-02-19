@@ -458,7 +458,7 @@ class Twoot:
             text = text.replace(w, '')
 
         # prevent mentions
-        text = re.sub(r'([\s\n])@([_\w\d])', r'\1@.\2', text)
+        text = re.sub(r'([\s\n]@)([_\w\d])', r'\1.\2', text)
 
         # no tailing spaces
         text = re.sub(r'[ \t]+\n', r'\n', text).strip()
@@ -579,6 +579,11 @@ class Twoot:
             # skip reply for other users
             if in_reply_to_user_id != my_id or len(user_mentions) > 1:
                 debug_skip(tweet_id, 'it is a reply for other users')
+                return
+
+            # reply to multiple users including oneself
+            if re.match(r'@[_\w\d]', tweet['full_text']):
+                debug_skip(tweet_id, 'it is a self reply but also to others')
                 return
 
             # if self reply, store in_reply_to_tweet_id for creating a thread
