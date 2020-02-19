@@ -1,4 +1,4 @@
-# twoot.py (v1.2.0)
+# twoot.py (v1.2.1)
 
 Sync Twitter and Mastodon nicely ― forward tweets to Mastodon and forward toots to Twitter, carefully not to make duplicate posts on a service. Other features of twoot.py:
 
