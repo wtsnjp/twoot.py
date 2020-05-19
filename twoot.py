@@ -458,7 +458,7 @@ class Twoot:
             text = text.replace(w, '')
 
         # prevent mentions
-        text = re.sub(r'([\s\n]@)([_\w\d])', r'\1.\2', text)
+        text = re.sub(r'([\s\n(]@)([_\w\d])', r'\1.\2', text)
 
         # no tailing spaces
         text = re.sub(r'[ \t]+\n', r'\n', text).strip()
