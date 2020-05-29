@@ -3,10 +3,10 @@
 #
 # This is file `twoot.py'.
 #
-# Copyright 2018 Takuto ASAKURA (wtsnjp)
+# Copyright 2018-2020 Takuto ASAKURA (wtsnjp)
 #   GitHub:   https://github.com/wtsnjp
 #   Twitter:  @wtsnjp
-#   Mastodon: @wtsnjp@mstdn.jp
+#   Mastodon: @wtsnjp@mstdn.wtsnjp.com
 #
 # This software is distributed under the MIT License.
 #
