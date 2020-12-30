@@ -164,7 +164,7 @@ class Twoot:
             # load config
             logger.debug('Loading config file {}'.format(self.config_file))
             with open(self.config_file) as f:
-                self.config = json.loads(f.read(), encoding='utf-8')
+                self.config = json.loads(f.read())
 
             # setup Mastodon
             ms = self.config['mastodon']
@@ -473,6 +473,7 @@ class Twoot:
 
         Returns:
             raw binary data
+            str: content type
         """
         r = requests.get(url)
         if r.status_code != 200:
@@ -486,6 +487,28 @@ class Twoot:
 
         return r.content, c_type
 
+    def __download_video(self, url):
+        """Download a video from `url`.
+
+        Args:
+            url (str): the video url
+
+        Returns:
+            raw binary data
+            str: content type
+        """
+        r = requests.get(url)
+        if r.status_code != 200:
+            logger.warn('Failed to get a video from {}'.format(url))
+            return None
+
+        c_type = r.headers['content-type']
+        if 'video' not in c_type:
+            logger.warn('Data from {} is not a video'.format(url))
+            return None
+
+        return r.content, c_type
+
     def __post_media_to_mastodon(self, media):
         """Get actual data of `media` from Twitter and post it to Mastodon.
 
@@ -495,20 +518,43 @@ class Twoot:
         Returns:
             a Mastodon media dict
         """
-        img, mime_type = self.__download_image(media['media_url_https'])
+        media_type = media['type']
 
-        try:
-            r = self.mastodon.media_post(img, mime_type=mime_type)
+        if media_type == 'photo':
+            img, mime_type = self.__download_image(media['media_url_https'])
 
-            # NOTE: only under development
-            #logger.debug('Recieved media info: {}'.format(str(r)))
+            try:
+                r = self.mastodon.media_post(img, mime_type=mime_type)
 
-            return r
+                # NOTE: only under development
+                #logger.debug('Recieved media info: {}'.format(str(r)))
 
-        # if failed, report it
-        except Exception as e:
-            logger.exception('Failed to post an image: {}'.format(e))
-            return None
+                return r
+
+            # if failed, report it
+            except Exception as e:
+                logger.exception('Failed to post an image: {}'.format(e))
+                return None
+
+        elif media_type == 'animated_gif':
+            video_url = media['video_info']['variants'][0]['url']
+            video, mime_type = self.__download_video(video_url)
+
+            try:
+                r = self.mastodon.media_post(video, mime_type=mime_type)
+
+                # NOTE: only under development
+                #logger.debug('Recieved media info: {}'.format(str(r)))
+
+                return r
+
+            # if failed, report it
+            except Exception as e:
+                logger.exception('Failed to post a video: {}'.format(e))
+                return None
+
+        else:
+            logger.warn('Unknown media type found. Skipping.')
 
     def __toot(self, text, in_reply_to_id=None, media_ids=None):
         try:
