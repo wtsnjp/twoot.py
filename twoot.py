@@ -3,7 +3,7 @@
 #
 # This is file `twoot.py'.
 #
-# Copyright 2018-2020 Takuto ASAKURA (wtsnjp)
+# Copyright 2018-2021 Takuto ASAKURA (wtsnjp)
 #   GitHub:   https://github.com/wtsnjp
 #   Twitter:  @wtsnjp
 #   Mastodon: @wtsnjp@mstdn.wtsnjp.com
@@ -82,12 +82,14 @@ class Twoot:
         pw = getpass(prompt='Login password (never stored): ')
 
         # register application
-        cl_id, cl_sc = Mastodon.create_app(
-            app_name, website=app_url, api_base_url=inst)
+        cl_id, cl_sc = Mastodon.create_app(app_name,
+                                           website=app_url,
+                                           api_base_url=inst)
 
         # application certification & login
-        mastodon = Mastodon(
-            client_id=cl_id, client_secret=cl_sc, api_base_url=inst)
+        mastodon = Mastodon(client_id=cl_id,
+                            client_secret=cl_sc,
+                            api_base_url=inst)
         access_token = mastodon.log_in(mail, pw)
 
         # set config
@@ -169,8 +171,8 @@ class Twoot:
             # setup Mastodon
             ms = self.config['mastodon']
             # Note: for HTTP debugging, set debug_requests=True
-            self.mastodon = Mastodon(
-                access_token=ms['access_token'], api_base_url=ms['instance'])
+            self.mastodon = Mastodon(access_token=ms['access_token'],
+                                     api_base_url=ms['instance'])
 
             # setup Twitter
             tw = self.config['twitter']
@@ -178,8 +180,8 @@ class Twoot:
                                    tw['access_token_secret'],
                                    tw['consumer_key'], tw['consumer_secret'])
             self.twitter = Twitter.Twitter(auth=t_auth)
-            self.twitter_upload = Twitter.Twitter(
-                domain='upload.twitter.com', auth=t_auth)
+            self.twitter_upload = Twitter.Twitter(domain='upload.twitter.com',
+                                                  auth=t_auth)
 
         # data
         self.twoots = []
@@ -310,8 +312,9 @@ class Twoot:
             # get tweets for sync
             if last_id:
                 logger.debug('Getting new tweets for sync')
-                r = self.twitter.statuses.user_timeline(
-                    user_id=my_id, since_id=last_id, tweet_mode="extended")
+                r = self.twitter.statuses.user_timeline(user_id=my_id,
+                                                        since_id=last_id,
+                                                        tweet_mode="extended")
 
                 logger.debug('Number of new tweets: {}'.format(len(r)))
                 res = r
@@ -320,8 +323,8 @@ class Twoot:
             else:
                 logger.debug(
                     'Getting new tweets only for fetching information')
-                r = self.twitter.statuses.user_timeline(
-                    user_id=my_id, tweet_mode="extended")
+                r = self.twitter.statuses.user_timeline(user_id=my_id,
+                                                        tweet_mode="extended")
 
             # update the last tweet ID
             if len(r) > 0:
@@ -558,8 +561,9 @@ class Twoot:
 
     def __toot(self, text, in_reply_to_id=None, media_ids=None):
         try:
-            r = self.mastodon.status_post(
-                text, in_reply_to_id=in_reply_to_id, media_ids=media_ids)
+            r = self.mastodon.status_post(text,
+                                          in_reply_to_id=in_reply_to_id,
+                                          media_ids=media_ids)
 
             # NOTE: only under development
             #logger.debug('Recieved toot info: {}'.format(str(r)))
@@ -693,11 +697,10 @@ class Twoot:
             # NOTE: these branches are for calculation efficiency
             # if the tweet is in a thread and in sync, copy as a thread
             if in_reply_to_tweet_id in synced_tweets:
-                r = self.__toot(
-                    text,
-                    in_reply_to_id=self.__find_paired_toot(
-                        in_reply_to_tweet_id),
-                    media_ids=media_ids)
+                r = self.__toot(text,
+                                in_reply_to_id=self.__find_paired_toot(
+                                    in_reply_to_tweet_id),
+                                media_ids=media_ids)
 
             # otherwise, just toot it
             else:
@@ -721,20 +724,52 @@ class Twoot:
         Returns:
             a Twitter media dict
         """
-        img, mime_type = self.__download_image(media['url'])
+        media_type = media['type']
 
-        try:
-            r = self.twitter_upload.media.upload(media=img)
+        if media_type == 'image':
+            img, mime_type = self.__download_image(media['url'])
 
-            # NOTE: only under development
-            #logger.debug('Recieved media info: {}'.format(str(r)))
+            try:
+                r = self.twitter_upload.media.upload(media=img)
 
-            return r
+                # NOTE: only under development
+                #logger.debug('Recieved media info: {}'.format(str(r)))
 
-        # if failed, report it
-        except Exception as e:
-            logger.exception('Failed to post an image: {}'.format(e))
-            return None
+                return r
+
+            # if failed, report it
+            except Exception as e:
+                logger.exception('Failed to post an image: {}'.format(e))
+                return None
+
+        elif media_type == 'gifv':
+            video, mime_type = self.__download_video(media['url'])
+
+            try:
+                # init
+                init_res = self.twitter_upload.media.upload(
+                    command='INIT',
+                    total_bytes=len(video),
+                    media_type=mime_type)
+                media_id = init_res['media_id_string']
+
+                # append
+                append_res = self.twitter_upload.media.upload(
+                    command='APPEND',
+                    media_id=media_id,
+                    media=video,
+                    segment_index=0)
+
+                # finalize
+                r = self.twitter_upload.media.upload(command='FINALIZE',
+                                                     media_id=media_id)
+
+                return r
+
+            # if failed, report it
+            except Exception as e:
+                logger.exception('Failed to post an image: {}'.format(e))
+                return None
 
     def __tweet(self, text, in_reply_to_id=None, media_ids=None):
         try:
@@ -871,11 +906,10 @@ class Twoot:
             # NOTE: these branches are for calculation efficiency
             # if the toot is in a thread and in sync, copy as a thread
             if in_reply_to_toot_id in synced_toots:
-                r = self.__tweet(
-                    text,
-                    in_reply_to_id=self.__find_paired_tweet(
-                        in_reply_to_toot_id),
-                    media_ids=media_ids)
+                r = self.__tweet(text,
+                                 in_reply_to_id=self.__find_paired_tweet(
+                                     in_reply_to_toot_id),
+                                 media_ids=media_ids)
 
             # otherwise, just tweet it
             else:
@@ -964,8 +998,9 @@ def set_logger(log_level, log_file):
 
     # log file
     if log_file:
-        handler = RotatingFileHandler(
-            log_file, maxBytes=5000000, backupCount=9)
+        handler = RotatingFileHandler(log_file,
+                                      maxBytes=5000000,
+                                      backupCount=9)
         formatter = log.Formatter(
             '%(asctime)s - %(name)s %(levelname)s: %(message)s')
     else:
