@@ -28,7 +28,7 @@ Options:
     -u, --update             Update data (only effective with -n).
     -v, --version            Show version.
 """.format(p=PROG_NAME)
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 
 # basic libraries
 import os
@@ -770,6 +770,9 @@ class Twoot:
             except Exception as e:
                 logger.exception('Failed to post an image: {}'.format(e))
                 return None
+
+        else:
+            logger.warn('Unknown media type found. Skipping.')
 
     def __tweet(self, text, in_reply_to_id=None, media_ids=None):
         try:
