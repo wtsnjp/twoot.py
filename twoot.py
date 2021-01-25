@@ -988,6 +988,9 @@ class Twoot:
                 self.data_file))
             self.__save_data()
 
+        # show current status for debugging
+        logger.debug('Number of stored twoots: {}'.format(len(self.data)))
+
 
 # the application
 def set_logger(log_level, log_file):
