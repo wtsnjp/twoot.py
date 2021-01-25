@@ -989,7 +989,7 @@ class Twoot:
             self.__save_data()
 
         # show current status for debugging
-        logger.debug('Number of stored twoots: {}'.format(len(self.data)))
+        logger.debug('Number of stored twoots: {}'.format(len(self.data['twoots'])))
 
 
 # the application
