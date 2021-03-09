@@ -398,9 +398,10 @@ class Twoot:
         Returns:
             str: the plain text
         """
-        # prevent removing line break & char escapes
+        # prevent removing line break, indents, and char escapes
         escapeable = [
             ('\n', '<br>'),  # line break
+            (' ', '&nbsp;'),  # space
             ('\\', '&#92;'),  # backslash
             ('+', '&#43;'),  # plus
             ('-', '&#45;'),  # hyphen
@@ -989,7 +990,8 @@ class Twoot:
             self.__save_data()
 
         # show current status for debugging
-        logger.debug('Number of stored twoots: {}'.format(len(self.data['twoots'])))
+        logger.debug('Number of stored twoots: {}'.format(
+            len(self.data['twoots'])))
 
 
 # the application
