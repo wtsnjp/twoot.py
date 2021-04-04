@@ -49,6 +49,7 @@ import requests
 # use logger
 import logging as log
 from logging.handlers import RotatingFileHandler
+
 logger = log.getLogger('twoot')
 
 
@@ -469,6 +470,45 @@ class Twoot:
 
         return text
 
+    def __replace_rt_cite(self, text, tweet_id):
+        """Replace the `rt_cite` place holder
+
+        Args:
+            text (str): the preprocessed text
+            tweet_id (int): Id of the original tweet
+
+        Returns:
+            str: the replaced text
+        """
+        rt_cite = self.config.get('rt_cite', None)
+        if not rt_cite:
+            return text
+
+        rt_cite_re = '({})$'.format('|'.join(rt_cite))
+        if not re.search(rt_cite_re, text):
+            return text
+
+        my_id = self.data['twitter_account']['id']
+        try:
+            r = self.twitter.statuses.user_timeline(user_id=my_id,
+                                                    count=1,
+                                                    max_id=tweet_id - 1,
+                                                    tweet_mode="extended")
+        except Exception as e:
+            logger.exception('Failed to get the previous tweet: {}'.format(e))
+            return text
+
+        rtd_tw = r[0].get('retweeted_status', None)
+        if rtd_tw is None:
+            logger.warn(
+                'Found a rt_cite place holder but cannot identify the RT')
+            return text
+
+        rtd_user, rtd_id = rtd_tw['user']['screen_name'], rtd_tw['id']
+        rtd_url = 'https://twitter.com/{}/status/{}'.format(rtd_user, rtd_id)
+
+        return re.sub(rt_cite_re, rtd_url, text)
+
     def __download_image(self, url):
         """Download an image from `url`.
 
@@ -686,6 +726,7 @@ class Twoot:
         # treat text
         media_urls = [m['expanded_url'] for m in twitter_media]
         text = self.__pre_process(tweet['full_text'], remove_words=media_urls)
+        text = self.__replace_rt_cite(text, tweet['id'])
 
         # try to create a toot
         if media_num > 0:
