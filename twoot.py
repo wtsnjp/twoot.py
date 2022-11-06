@@ -3,7 +3,7 @@
 #
 # This is file `twoot.py'.
 #
-# Copyright 2018-2021 Takuto ASAKURA (wtsnjp)
+# Copyright 2018-2022 Takuto ASAKURA (wtsnjp)
 #   GitHub:   https://github.com/wtsnjp
 #   Twitter:  @wtsnjp
 #   Mastodon: @wtsnjp@mstdn.wtsnjp.com
@@ -49,7 +49,7 @@ Options:
     -u, --update             Update data (only effective with -n).
     -v, --version            Show version.
 """.format(p=PROG_NAME)
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 logger = log.getLogger('twoot')
 
