@@ -1,0 +1,13 @@
+{
+    "mastodon": {
+        "access_token": "<Your access token>",
+        "instance": "<Mastodon server URL>"
+    },
+    "max_twoots": 5000,
+    "twitter": {
+        "access_token": "<Your access token>",
+        "access_token_secret": "<Your access token secret>",
+        "consumer_key": "<Your consumer key secret>",
+        "consumer_secret": "<Your consumer secret>"
+    }
+}

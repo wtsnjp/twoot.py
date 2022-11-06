@@ -1,6 +1,6 @@
 # twoot.py (v1.3.0)
 
-Sync Twitter and Mastodon nicely ― forward tweets to Mastodon and forward toots to Twitter, carefully not to make duplicate posts on a service. Other features of twoot.py:
+Sync Twitter and Mastodon nicely ― forward tweets to Mastodon and forward toots to Twitter, carefully not to make duplicate posts on a service. Other features of twoot.py are:
 
 * images are also forwarded each other,
 * sync so-called "thread" and "self BT/RT" as well,
@@ -13,7 +13,7 @@ This script is designed to work with Python (3.5 or later).
 
 ## Installation
 
-All dependencies can be installed by one shot:
+All dependencies can be installed with:
 
 ```
 $ python setup.py install
@@ -23,7 +23,7 @@ $ python setup.py install
 
 ### Setup running
 
-After installing the script, run `twoot.py` once by hand and fill the following fields:
+After installing the script, run `twoot.py` once by hand and fill in the following fields:
 
 ```
 $ python twoot.py
@@ -48,9 +48,9 @@ Access token secret:
 All configuration done. Thanks!
 ```
 
-When the setup mode is completed successfully, all necessary configuration will be stored under `$HOME/.twoot.py`. No toots nor tweets are sent within the setup mode.
+When the setup mode is completed successfully, all necessary configurations will be stored under `$HOME/.twoot.py`. No toots nor tweets are sent within the setup mode.
 
-> Note: If you want to change these configuration, execute `python twoot.py --setup` to start setup mode once again or just edit `$HOME/.twoot.py/default.json` directly.
+> Note: If you want to change these configurations, execute `python twoot.py --setup` to start setup mode once again or just edit `$HOME/.twoot.py/default.json` directly.
 
 ### Regular running
 
@@ -63,6 +63,10 @@ After the setup running, set cron (or whatever) to run `python twoot.py` regular
 ### Using profile
 
 You can detect a profile with the command line option `--profile` (`-p`) to use this script for multiple accounts. The configuration and the data for a profile `NAME` are saved to `~/.twoot.py/NAME.json` and `~/.twoot.py/NAME.pickle` respectively. When you omit the command line option, the "default" profile is automatically selected.
+
+### Example configurations
+
+See [example-config.json](./example-config.json).
 
 ## License
 
