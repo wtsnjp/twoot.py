@@ -11,25 +11,6 @@
 # This software is distributed under the MIT License.
 #
 
-PROG_NAME = "twoot.py"
-HELP = """Sync Twitter and Mastodon nicely.
-
-Usage:
-    {p} [options]
-
-Options:
-    -d, --debug              Show debug messages.
-    -h, --help               Show this screen and exit.
-    -l FILE, --log=FILE      Output messages to FILE.
-    -n, --dry-run            Show what would have been transferred.
-    -p NAME, --profile=NAME  Use profile NAME.
-    -q, --quiet              Show less messages.
-    -s, --setup              Execute setup mode.
-    -u, --update             Update data (only effective with -n).
-    -v, --version            Show version.
-""".format(p=PROG_NAME)
-VERSION = "1.3.0"
-
 # basic libraries
 import os
 import re
@@ -49,6 +30,26 @@ import requests
 # use logger
 import logging as log
 from logging.handlers import RotatingFileHandler
+
+# metadata
+PROG_NAME = "twoot.py"
+HELP = """Sync Twitter and Mastodon nicely.
+
+Usage:
+    {p} [options]
+
+Options:
+    -d, --debug              Show debug messages.
+    -h, --help               Show this screen and exit.
+    -l FILE, --log=FILE      Output messages to FILE.
+    -n, --dry-run            Show what would have been transferred.
+    -p NAME, --profile=NAME  Use profile NAME.
+    -q, --quiet              Show less messages.
+    -s, --setup              Execute setup mode.
+    -u, --update             Update data (only effective with -n).
+    -v, --version            Show version.
+""".format(p=PROG_NAME)
+VERSION = "1.3.0"
 
 logger = log.getLogger('twoot')
 
@@ -444,16 +445,16 @@ class Twoot:
         # expand links
         links = [w for w in text.split() if urlparse(w.strip()).scheme]
 
-        for l in links:
+        for link in links:
             # check the link
-            if not re.match(r'http(s|)://', l):
+            if not re.match(r'http(s|)://', link):
                 continue
 
             # expand link with HTTP(S) HEAD request
             try:
-                r = requests.head(l)
-                url = r.headers.get('location', l)
-                text = text.replace(l, url)
+                r = requests.head(link)
+                url = r.headers.get('location', link)
+                text = text.replace(link, url)
 
             except Exception as e:
                 logger.exception('HTTP(S) HEAD request failed: {}'.format(e))
@@ -570,8 +571,7 @@ class Twoot:
             try:
                 r = self.mastodon.media_post(img, mime_type=mime_type)
 
-                # NOTE: only under development
-                #logger.debug('Recieved media info: {}'.format(str(r)))
+                logger.debug('Recieved media info: {}'.format(str(r)))
 
                 return r
 
@@ -586,10 +586,7 @@ class Twoot:
 
             try:
                 r = self.mastodon.media_post(video, mime_type=mime_type)
-
-                # NOTE: only under development
-                #logger.debug('Recieved media info: {}'.format(str(r)))
-
+                logger.debug('Recieved media info: {}'.format(str(r)))
                 return r
 
             # if failed, report it
@@ -606,8 +603,7 @@ class Twoot:
                                           in_reply_to_id=in_reply_to_id,
                                           media_ids=media_ids)
 
-            # NOTE: only under development
-            #logger.debug('Recieved toot info: {}'.format(str(r)))
+            logger.debug('Recieved toot info: {}'.format(str(r)))
 
             return r
 
@@ -619,10 +615,7 @@ class Twoot:
     def __boost(self, target_id):
         try:
             r = self.mastodon.status_reblog(target_id)
-
-            # NOTE: only under development
-            #logger.debug('Recieved toot (BT) info: {}'.format(str(r)))
-
+            logger.debug('Recieved toot (BT) info: {}'.format(str(r)))
             return r
 
         # if failed, report it
@@ -773,10 +766,7 @@ class Twoot:
 
             try:
                 r = self.twitter_upload.media.upload(media=img)
-
-                # NOTE: only under development
-                #logger.debug('Recieved media info: {}'.format(str(r)))
-
+                logger.debug('Recieved media info: {}'.format(str(r)))
                 return r
 
             # if failed, report it
@@ -796,7 +786,7 @@ class Twoot:
                 media_id = init_res['media_id_string']
 
                 # append
-                append_res = self.twitter_upload.media.upload(
+                self.twitter_upload.media.upload(
                     command='APPEND',
                     media_id=media_id,
                     media=video,
@@ -824,7 +814,7 @@ class Twoot:
                 media_ids=','.join(media_ids))
 
             # NOTE: only under development
-            #logger.debug('Recieved tweet info: {}'.format(str(r)))
+            logger.debug('Recieved tweet info: {}'.format(str(r)))
 
             return r
 
@@ -836,10 +826,7 @@ class Twoot:
     def __retweet(self, target_id):
         try:
             r = self.twitter.statuses.retweet(_id=target_id)
-
-            # NOTE: only under development
-            #logger.debug('Recieved toot (BT) info: {}'.format(str(r)))
-
+            logger.debug('Recieved toot (BT) info: {}'.format(str(r)))
             return r
 
         # if failed, report it
@@ -972,8 +959,7 @@ class Twoot:
     def tweets2toots(self, tweets, dry_run=False):
         # process from the oldest one
         for t in reversed(tweets):
-            # NOTE: only under development
-            #logger.debug('Processing tweet info: {}'.format(t))
+            logger.debug('Processing tweet info: {}'.format(t))
 
             # create a toot if necessary
             self.create_toot_from_tweet(t, dry_run)
@@ -981,8 +967,7 @@ class Twoot:
     def toots2tweets(self, toots, dry_run=False):
         # process from the oldest one
         for t in reversed(toots):
-            # NOTE: only under development
-            #logger.debug('Processing toot info: {}'.format(t))
+            logger.debug('Processing toot info: {}'.format(t))
 
             # create a toot if necessary
             self.create_tweet_from_toot(t, dry_run)
