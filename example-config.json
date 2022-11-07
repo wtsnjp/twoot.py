@@ -7,7 +7,7 @@
     "twitter": {
         "access_token": "<Your access token>",
         "access_token_secret": "<Your access token secret>",
-        "consumer_key": "<Your consumer key secret>",
+        "consumer_key": "<Your consumer key>",
         "consumer_secret": "<Your consumer secret>"
     }
 }
