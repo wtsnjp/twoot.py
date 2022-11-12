@@ -49,7 +49,7 @@ Options:
     -u, --update             Update data (only effective with -n).
     -v, --version            Show version.
 """.format(p=PROG_NAME)
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 logger = log.getLogger('twoot')
 
