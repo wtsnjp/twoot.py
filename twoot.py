@@ -84,18 +84,21 @@ class Twoot:
         pw = getpass(prompt='Login password (never stored): ')
 
         # register application
+        sess = requests.Session()
+        sess.headers.update({"User-Agent": app_name})
         cl_id, cl_sc = Mastodon.create_app(app_name,
                                            website=app_url,
-                                           api_base_url=inst)
+                                           api_base_url=inst, session=sess)
 
         # application certification & login
         mastodon = Mastodon(client_id=cl_id,
                             client_secret=cl_sc,
-                            api_base_url=inst)
+                            api_base_url=inst, user_agent=app_name)
         access_token = mastodon.log_in(mail, pw)
 
         # set config
         self.config['mastodon'] = {
+            'app_name': app_name,
             'instance': inst,
             'access_token': access_token
         }
@@ -174,7 +177,7 @@ class Twoot:
             ms = self.config['mastodon']
             # Note: for HTTP debugging, set debug_requests=True
             self.mastodon = Mastodon(access_token=ms['access_token'],
-                                     api_base_url=ms['instance'])
+                                     api_base_url=ms['instance'], user_agent=ms.get('app_name', ''))
 
             # setup Twitter
             tw = self.config['twitter']
