@@ -56,6 +56,7 @@ logger = log.getLogger('twoot')
 
 # the module
 class Twoot:
+
     def __app_questions(self):
         # defaults
         d_name = 'twoot.py'
@@ -88,12 +89,14 @@ class Twoot:
         sess.headers.update({"User-Agent": app_name})
         cl_id, cl_sc = Mastodon.create_app(app_name,
                                            website=app_url,
-                                           api_base_url=inst, session=sess)
+                                           api_base_url=inst,
+                                           session=sess)
 
         # application certification & login
         mastodon = Mastodon(client_id=cl_id,
                             client_secret=cl_sc,
-                            api_base_url=inst, user_agent=app_name)
+                            api_base_url=inst,
+                            user_agent=app_name)
         access_token = mastodon.log_in(mail, pw)
 
         # set config
@@ -177,7 +180,8 @@ class Twoot:
             ms = self.config['mastodon']
             # Note: for HTTP debugging, set debug_requests=True
             self.mastodon = Mastodon(access_token=ms['access_token'],
-                                     api_base_url=ms['instance'], user_agent=ms.get('app_name', ''))
+                                     api_base_url=ms['instance'],
+                                     user_agent=ms.get('app_name', ''))
 
             # setup Twitter
             tw = self.config['twitter']
@@ -789,11 +793,10 @@ class Twoot:
                 media_id = init_res['media_id_string']
 
                 # append
-                self.twitter_upload.media.upload(
-                    command='APPEND',
-                    media_id=media_id,
-                    media=video,
-                    segment_index=0)
+                self.twitter_upload.media.upload(command='APPEND',
+                                                 media_id=media_id,
+                                                 media=video,
+                                                 segment_index=0)
 
                 # finalize
                 r = self.twitter_upload.media.upload(command='FINALIZE',
