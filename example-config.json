@@ -1,7 +1,7 @@
 {
     "mastodon": {
         "access_token": "<Your access token>",
-	"app_name": "twoot.py",
+        "app_name": "twoot.py",
         "instance": "<Mastodon server URL>"
     },
     "max_twoots": 5000,
